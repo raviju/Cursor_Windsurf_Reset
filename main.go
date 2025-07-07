@@ -14,7 +14,7 @@ import (
 )
 
 func main() {
-	// 设置中文环境
+
 	os.Setenv("LANG", "zh_CN.UTF-8")
 	os.Setenv("LANGUAGE", "zh_CN.UTF-8")
 	os.Setenv("LC_ALL", "zh_CN.UTF-8")

@@ -7,17 +7,14 @@ import (
 	"fyne.io/fyne/v2/theme"
 )
 
-// DarkChineseTheme 是一个支持中文的暗色主题
 type DarkChineseTheme struct{}
 
-// Font 返回指定样式的字体资源
 func (t *DarkChineseTheme) Font(style fyne.TextStyle) fyne.Resource {
 	return ChineseFontResource
 }
 
-// Color 返回指定名称和变体的颜色
 func (t *DarkChineseTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
-	// 强制使用暗色模式的颜色
+
 	if name == theme.ColorNameBackground {
 		return color.NRGBA{R: 30, G: 30, B: 30, A: 255}
 	} else if name == theme.ColorNameButton {
@@ -37,18 +34,16 @@ func (t *DarkChineseTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVar
 	} else if name == theme.ColorNameShadow {
 		return color.NRGBA{R: 0, G: 0, B: 0, A: 100}
 	}
-	// 其他颜色使用默认暗色主题
+
 	return theme.DefaultTheme().Color(name, theme.VariantDark)
 }
 
-// Icon 返回指定名称的图标资源
 func (t *DarkChineseTheme) Icon(name fyne.ThemeIconName) fyne.Resource {
 	return theme.DefaultTheme().Icon(name)
 }
 
-// Size 返回指定名称的大小
 func (t *DarkChineseTheme) Size(name fyne.ThemeSizeName) float32 {
-	// 适当增大部分元素尺寸以提高可读性
+
 	if name == theme.SizeNamePadding {
 		return theme.DefaultTheme().Size(name) * 1.1
 	} else if name == theme.SizeNameText {
@@ -57,22 +52,18 @@ func (t *DarkChineseTheme) Size(name fyne.ThemeSizeName) float32 {
 	return theme.DefaultTheme().Size(name)
 }
 
-// NewDarkChineseTheme 创建一个支持中文的暗色主题
 func NewDarkChineseTheme() fyne.Theme {
 	return &DarkChineseTheme{}
 }
 
-// ModernDarkTheme 是一个更现代化的暗色主题，具有更好的对比度和视觉效果
 type ModernDarkTheme struct{}
 
-// Font 返回指定样式的字体资源
 func (t *ModernDarkTheme) Font(style fyne.TextStyle) fyne.Resource {
 	return ChineseFontResource
 }
 
-// Color 返回指定名称和变体的颜色
 func (t *ModernDarkTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
-	// 使用更现代的暗色调色板
+
 	if name == theme.ColorNameBackground {
 		return color.NRGBA{R: 25, G: 28, B: 36, A: 255} // 深蓝灰色背景
 	} else if name == theme.ColorNameButton {

@@ -46,7 +46,6 @@ type App struct {
 	selectedIndex     int
 	mainAreaContainer *fyne.Container
 
-	// 多选支持
 	selectedApps   map[int]bool
 	selectAllCheck *widget.Check
 }
@@ -67,7 +66,6 @@ func NewApp() *App {
 	fyneApp := app.New()
 	fyneApp.SetIcon(theme.ComputerIcon())
 
-	// 设置现代暗色中文主题
 	fyneApp.Settings().SetTheme(NewModernDarkTheme())
 
 	// Setup logger
