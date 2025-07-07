@@ -2,6 +2,9 @@
 
 用于重置 Cursor 和 Windsurf 应用数据的高级工具，支持最新版Cursor 和 Windsurf，
 
+## ✨ 界面截图
+
+![界面截图](https://github.com/whispin/Cursor_Windsurf_Reset/blob/main/screenshot/homepage.jpg?raw=true)
 ## ✨ 功能特性
 
 ### 🎯 核心功能
