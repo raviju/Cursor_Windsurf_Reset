@@ -96,7 +96,7 @@ jobs:
         fi
 
     - name: Upload artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: Cursor_Windsurf_Reset-${{ matrix.name }}
         path: Cursor_Windsurf_Reset-${{ matrix.name }}${{ matrix.suffix }}
