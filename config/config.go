@@ -3,9 +3,10 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/rs/zerolo
 	"os"
 	"path/filepath"
-)
+	"io"
 
 // Config represents the main configuration structure
 type Config struct {
@@ -268,4 +269,35 @@ func GetConfigPath() string {
 
 	// Return default path
 	return "reset_config.json"
+}
+
+// GuiLogWriter 用于将日志内容写入 GUI 的 logChan
+// 使 zerolog 日志可显示在 GUI 界面
+// 用法：guiWriter := &config.GuiLogWriter{LogChan: logChan}
+type GuiLogWriter struct {
+	LogChan chan string
+}
+
+// Write 实现 io.Writer，将日志内容写入 LogChan
+func (w *GuiLogWriter) Write(p []byte) (n int, err error) {
+	if w == nil || w.LogChan == nil {
+		return 0, nil
+	}
+	select {
+	case w.LogChan <- string(p):
+		return len(p), nil
+	default:
+		// 通道满时丢弃日志，防止阻塞
+		return len(p), nil
+	}
+}
+
+// SetupLogger 设置 zerolog 全局日志输出到指定 writer
+// ⚠️ 注意：不建议在主流程中调用此方法覆盖全局log.Logger，
+// 仅供特殊场景（如GUI日志通道、测试等）使用，避免影响终端日志格式。
+func SetupLogger(writer io.Writer) {
+	if writer == nil {
+		return
+	}
+	log.Logger = log.Output(writer)
 }

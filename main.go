@@ -49,6 +49,23 @@ func main() {
 	}
 	zerolog.SetGlobalLevel(logLevel)
 
+	consoleWriter := zerolog.ConsoleWriter{
+		Out:             os.Stdout,
+		NoColor:         false,
+		TimeFormat:      "",
+		FormatTimestamp: func(i interface{}) string { return "" },
+		FormatLevel: func(i interface{}) string {
+			if l, ok := i.(string); ok {
+				return fmt.Sprintf("[%s]", strings.ToUpper(l))
+			}
+			return "[INFO]"
+		},
+		FormatMessage: func(i interface{}) string {
+			return fmt.Sprintf("%s", i)
+		},
+	}
+	log.Logger = zerolog.New(consoleWriter).Level(logLevel).With().Logger()
+
 	cfg, err := config.LoadConfig(*configPath)
 	if err != nil {
 		log.Fatal().Err(err).Msg("Failed to load configuration")
