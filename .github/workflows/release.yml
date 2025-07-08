@@ -175,7 +175,7 @@ jobs:
         echo "${ORIGINAL_SIZE},${COMPRESSED_SIZE},${SAVED_SIZE},${SAVED_PERCENT}" > "${OUTPUT_NAME}.metrics"
 
     - name: Upload artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: Cursor_Windsurf_Reset-${{ matrix.name }}
         path: |
