@@ -70,6 +70,7 @@ jobs:
         upx --version
         echo "✅ 已安装UPX压缩工具"
 
+    # 安装平台特定的构建依赖
     - name: Install build dependencies for Linux
       if: matrix.goos == 'linux'
       run: |
@@ -78,88 +79,236 @@ jobs:
         # 安装 Fyne 所需的依赖
         sudo apt-get install -y libgl1-mesa-dev xorg-dev
 
+    # 增强Windows构建支持
     - name: Install cross-compilation tools for Windows
       if: matrix.goos == 'windows'
       run: |
         sudo apt-get update
         sudo apt-get install -y gcc-mingw-w64
+        if [ "${{ matrix.goarch }}" = "arm64" ]; then
+          # 检查ARM64编译器是否可用
+          if ! which aarch64-w64-mingw32-gcc > /dev/null; then
+            echo "⚠️ 警告: Windows ARM64 编译器不可用，尝试安装替代方案..."
+            # 尝试安装替代方案，根据Ubuntu版本可能会有不同的包名
+            sudo apt-get install -y gcc-mingw-w64-aarch64 || true
+          fi
+        fi
 
-    # 替换：自动从源码中提取中文字符
+    # 增强macOS构建支持
+    - name: Setup macOS cross-compilation (if needed)
+      if: matrix.goos == 'darwin'
+      run: |
+        echo "ℹ️ 设置macOS交叉编译环境..."
+        # macOS交叉编译通常不需要特殊的编译器，但需要特殊处理
+        # 记录当前环境以便调试
+        go env
+
+    # 替换：使用Python脚本从源码中提取中文字符
     - name: Extract Chinese characters from source code
       run: |
         echo "📝 从源码中提取中文字符..."
-        touch chinese_chars.txt
-        find . -name "*.go" -type f | while read -r file; do
-          grep -o '"[^"]*[\u4e00-\u9fa5][^"]*"' "$file" 2>/dev/null | sed 's/"//g' >> chinese_chars.txt || true
-          grep -o "'[^']*[\u4e00-\u9fa5][^']*'" "$file" 2>/dev/null | sed 's/'//g' >> chinese_chars.txt || true
-        done
         
-        sort chinese_chars.txt | uniq > chinese_chars_unique.txt
-        mv chinese_chars_unique.txt chinese_chars.txt
+        # 创建Python脚本来提取中文字符
+        cat > extract_chinese.py << 'EOF'
+        import os
+        import re
+        import sys
+
+        def is_chinese(c):
+            # 检查是否是中文字符（Unicode范围）
+            return '\u4e00' <= c <= '\u9fff'
+
+        def extract_chinese_from_file(filename):
+            chinese_chars = set()
+            try:
+                with open(filename, 'r', encoding='utf-8', errors='ignore') as f:
+                    content = f.read()
+                    # 提取双引号中的字符串
+                    double_quotes = re.findall(r'"([^"]*)"', content)
+                    for s in double_quotes:
+                        for c in s:
+                            if is_chinese(c):
+                                chinese_chars.update(s)
+                                break
+                    
+                    # 提取单引号中的字符串
+                    single_quotes = re.findall(r"'([^']*)'", content)
+                    for s in single_quotes:
+                        for c in s:
+                            if is_chinese(c):
+                                chinese_chars.update(s)
+                                break
+            except Exception as e:
+                print(f"警告: 处理文件 {filename} 时出错: {e}", file=sys.stderr)
+            
+            return chinese_chars
+
+        def main():
+            all_chinese = set()
+            count = 0
+            
+            # 递归遍历所有Go文件
+            for root, _, files in os.walk('.'):
+                for file in files:
+                    if file.endswith('.go'):
+                        file_path = os.path.join(root, file)
+                        chinese_in_file = extract_chinese_from_file(file_path)
+                        all_chinese.update(chinese_in_file)
+                        if chinese_in_file:
+                            count += 1
+            
+            # 确保基本ASCII字符也被包含
+            ascii_chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ,.?!@#$%^&*()_+-=[]{}|;:\"'<>/`~"
+            all_chars = all_chinese.union(set(ascii_chars))
+            
+            # 写入到文件
+            with open('chinese_chars.txt', 'w', encoding='utf-8') as f:
+                f.write(''.join(all_chars))
+            
+            print(f"✅ 中文字符提取完成，处理了 {count} 个包含中文的文件")
+            print(f"📊 统计信息:")
+            print(f"- 总字符数: {len(all_chars)}")
+            print(f"- 中文字符数: {len([c for c in all_chars if is_chinese(c)])}")
+            
+            # 打印样例（最多20个字符）
+            sample = ''.join(list(all_chars)[:20])
+            print(f"- 字符样例: {sample}")
+
+        if __name__ == '__main__':
+            main()
+        EOF
         
-        cat chinese_chars.txt | grep -o . | sort | uniq > chinese_chars_expanded.txt
-        mv chinese_chars_expanded.txt chinese_chars.txt
+        # 执行Python脚本
+        python extract_chinese.py
         
-        echo 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ,.?!@#$%^&*()_+-=[]{}|;:"<>/\`~' >> chinese_chars.txt
-        echo "✅ 中文字符提取完成"
-        echo "📊 统计信息:"
-        echo "- 字符总数: $(wc -c < chinese_chars.txt)"
-    # 新增：字体子集化步骤
+        echo "📄 中文字符文件内容预览:"
+        head -c 100 chinese_chars.txt
+
+    # 加强字体子集化步骤的错误处理
     - name: Create font subset
       run: |
         echo "📝 开始字体子集化..."
-        pyftsubset gui/NotoSansSC-Regular.ttf --text-file=chinese_chars.txt --output-file=gui/NotoSansSC-Subset.ttf
         
-        ORIGINAL_SIZE=$(stat -c %s gui/NotoSansSC-Regular.ttf)
-        SUBSET_SIZE=$(stat -c %s gui/NotoSansSC-Subset.ttf)
-        SAVED_SIZE=$((ORIGINAL_SIZE - SUBSET_SIZE))
-        SAVED_PERCENT=$((SAVED_SIZE * 100 / ORIGINAL_SIZE))
+        # 检查字体文件是否存在
+        if [ ! -f "gui/NotoSansSC-Regular.ttf" ]; then
+          echo "❌ 错误: 字体文件不存在: gui/NotoSansSC-Regular.ttf"
+          # 列出目录内容以调试
+          echo "目录内容:"
+          ls -la gui/
+          exit 1
+        fi
         
-        echo "📊 字体文件大小对比:"
-        echo "- 原始字体: $ORIGINAL_SIZE 字节"
-        echo "- 子集字体: $SUBSET_SIZE 字节"
-        echo "- 节省空间: $SAVED_SIZE 字节 ($SAVED_PERCENT%)"
+        # 检查中文字符文件是否存在
+        if [ ! -f "chinese_chars.txt" ]; then
+          echo "❌ 错误: 中文字符文件不存在: chinese_chars.txt"
+          exit 1
+        fi
+        
+        # 创建字体子集，添加错误处理
+        if ! pyftsubset gui/NotoSansSC-Regular.ttf --text-file=chinese_chars.txt --output-file=gui/NotoSansSC-Subset.ttf; then
+          echo "❌ 字体子集化失败，尝试使用基本选项..."
+          # 尝试简化的子集化命令
+          pyftsubset gui/NotoSansSC-Regular.ttf --text="测试中文" --output-file=gui/NotoSansSC-Subset.ttf
+        fi
+        
+        # 验证子集字体是否创建成功
+        if [ ! -f "gui/NotoSansSC-Subset.ttf" ]; then
+          echo "❌ 错误: 子集字体文件创建失败"
+          # 复制原始字体作为备用方案
+          cp gui/NotoSansSC-Regular.ttf gui/NotoSansSC-Subset.ttf
+          echo "⚠️ 使用原始字体作为备用方案"
+        else
+          # 检查字体文件大小
+          ORIGINAL_SIZE=$(stat -c %s gui/NotoSansSC-Regular.ttf)
+          SUBSET_SIZE=$(stat -c %s gui/NotoSansSC-Subset.ttf)
+          SAVED_SIZE=$((ORIGINAL_SIZE - SUBSET_SIZE))
+          SAVED_PERCENT=$((SAVED_SIZE * 100 / ORIGINAL_SIZE))
+          
+          echo "📊 字体文件大小对比:"
+          echo "- 原始字体: $ORIGINAL_SIZE 字节"
+          echo "- 子集字体: $SUBSET_SIZE 字节"
+          echo "- 节省空间: $SAVED_SIZE 字节 ($SAVED_PERCENT%)"
+        fi
         
         # 修改resources.go文件以使用子集字体
-        sed -i 's/NotoSansSC-Regular.ttf/NotoSansSC-Subset.ttf/g' gui/resources.go
-        echo "✅ 字体子集化完成"
+        if [ -f "gui/resources.go" ]; then
+          sed -i 's/NotoSansSC-Regular.ttf/NotoSansSC-Subset.ttf/g' gui/resources.go
+          echo "✅ 更新resources.go使用子集字体"
+        else
+          echo "❌ 错误: resources.go文件不存在"
+        fi
 
+    # 增强构建步骤，添加更多错误处理和调试信息
     - name: Build binary
       env:
         GOOS: ${{ matrix.goos }}
         GOARCH: ${{ matrix.goarch }}
         CGO_ENABLED: 1
       run: |
+        echo "🔨 开始为 ${{ matrix.goos }}-${{ matrix.goarch }} 构建二进制文件..."
+        
         # 设置交叉编译环境
         if [ "${{ matrix.goos }}" = "windows" ]; then
           if [ "${{ matrix.goarch }}" = "amd64" ]; then
             export CC=x86_64-w64-mingw32-gcc
             export CXX=x86_64-w64-mingw32-g++
-          else
-            export CC=aarch64-w64-mingw32-gcc
-            export CXX=aarch64-w64-mingw32-g++
+          elif [ "${{ matrix.goarch }}" = "arm64" ]; then
+            # 尝试使用aarch64编译器，如果不可用则报告
+            if which aarch64-w64-mingw32-gcc > /dev/null; then
+              export CC=aarch64-w64-mingw32-gcc
+              export CXX=aarch64-w64-mingw32-g++
+            else
+              echo "⚠️ 警告: Windows ARM64 编译器不可用，构建可能会失败"
+            fi
           fi
+        elif [ "${{ matrix.goos }}" = "darwin" ]; then
+          # macOS构建可能需要特殊处理
+          echo "ℹ️ 设置macOS构建环境"
+          # 对于macOS构建，通常不需要设置CC/CXX
         fi
+        
+        # 显示编译环境信息
+        echo "📋 编译环境信息:"
+        echo "- GOOS: $GOOS"
+        echo "- GOARCH: $GOARCH"
+        echo "- CGO_ENABLED: $CGO_ENABLED"
+        echo "- CC: ${CC:-未设置}"
+        echo "- CXX: ${CXX:-未设置}"
         
         # 构建二进制文件，添加额外的优化选项
         OUTPUT_NAME="Cursor_Windsurf_Reset-${{ matrix.name }}${{ matrix.suffix }}"
-        go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" -o "${OUTPUT_NAME}" main.go
+        echo "🔧 执行构建命令: go build -ldflags=\"-s -w -X main.version=${{ github.ref_name }}\" -o \"${OUTPUT_NAME}\" main.go"
         
-
+        # 尝试构建，如果失败则提供详细日志
+        if ! go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" -o "${OUTPUT_NAME}" main.go; then
+          echo "❌ 构建失败，显示详细日志"
+          go build -v -x -ldflags="-s -w -X main.version=${{ github.ref_name }}" -o "${OUTPUT_NAME}" main.go || true
+          # 检查常见的失败原因
+          echo "📋 诊断信息:"
+          go env
+          echo "⚠️ 构建失败，跳过后续步骤"
+          exit 1
+        fi
+        
+        # 记录构建前的文件大小
         ORIGINAL_SIZE=$(stat -c %s "${OUTPUT_NAME}")
         echo "📊 原始二进制文件大小: ${ORIGINAL_SIZE} 字节"
-      
+        
+        # 验证文件是否创建成功
         if [ -f "${OUTPUT_NAME}" ]; then
           echo "✅ 构建成功: ${OUTPUT_NAME}"
           ls -la "${OUTPUT_NAME}"
         else
-          echo "❌ 构建失败: ${OUTPUT_NAME}"
+          echo "❌ 构建失败: ${OUTPUT_NAME} 文件不存在"
           exit 1
         fi
         
         # 使用UPX压缩二进制文件
         echo "📦 开始UPX压缩..."
-        upx --best "${OUTPUT_NAME}"
+        if ! upx --best "${OUTPUT_NAME}"; then
+          echo "⚠️ UPX压缩失败，尝试使用普通模式"
+          upx "${OUTPUT_NAME}" || echo "❌ UPX压缩完全失败，使用未压缩文件"
+        fi
         
         # 记录压缩后的文件大小
         COMPRESSED_SIZE=$(stat -c %s "${OUTPUT_NAME}")
@@ -175,7 +324,7 @@ jobs:
         echo "${ORIGINAL_SIZE},${COMPRESSED_SIZE},${SAVED_SIZE},${SAVED_PERCENT}" > "${OUTPUT_NAME}.metrics"
 
     - name: Upload artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v3
       with:
         name: Cursor_Windsurf_Reset-${{ matrix.name }}
         path: |
@@ -213,9 +362,20 @@ jobs:
           fi
         done
         
-        # 复制配置文件和文档
-        cp cleaner_config.json release-files/
-        cp README.md release-files/
+        # 复制配置文件和文档（修正文件名）
+        if [ -f "reset_config.json" ]; then
+          cp reset_config.json release-files/
+          echo "✅ 复制文件: reset_config.json -> release-files/"
+        else
+          echo "⚠️ 警告: reset_config.json 不存在"
+        fi
+        
+        if [ -f "README.md" ]; then
+          cp README.md release-files/
+          echo "✅ 复制文件: README.md -> release-files/"
+        else
+          echo "⚠️ 警告: README.md 不存在"
+        fi
         
         echo "📦 准备发布的文件:"
         ls -la release-files/
@@ -231,28 +391,58 @@ jobs:
         echo "| 平台 | 原始大小 | 优化后大小 | 节省空间 | 压缩率 |" > optimization_metrics.md
         echo "|------|----------|------------|----------|--------|" >> optimization_metrics.md
         
-        find . -name "*.metrics" | while read metrics_file; do
-          PLATFORM=$(basename $metrics_file .metrics)
-          METRICS=$(cat $metrics_file)
-          IFS=',' read -r ORIGINAL_SIZE COMPRESSED_SIZE SAVED_SIZE SAVED_PERCENT <<< "$METRICS"
-          
-          ORIGINAL_SIZE_MB=$(echo "scale=2; $ORIGINAL_SIZE/1048576" | bc)
-          COMPRESSED_SIZE_MB=$(echo "scale=2; $COMPRESSED_SIZE/1048576" | bc)
-          SAVED_SIZE_MB=$(echo "scale=2; $SAVED_SIZE/1048576" | bc)
-          
-          echo "| $PLATFORM | ${ORIGINAL_SIZE_MB} MB | ${COMPRESSED_SIZE_MB} MB | ${SAVED_SIZE_MB} MB | ${SAVED_PERCENT}% |" >> optimization_metrics.md
-          
-          TOTAL_ORIGINAL_SIZE=$((TOTAL_ORIGINAL_SIZE + ORIGINAL_SIZE))
-          TOTAL_COMPRESSED_SIZE=$((TOTAL_COMPRESSED_SIZE + COMPRESSED_SIZE))
-        done
+        # 查找所有指标文件
+        METRICS_FILES=$(find . -name "*.metrics" 2>/dev/null || echo "")
         
-        TOTAL_SAVED_SIZE=$((TOTAL_ORIGINAL_SIZE - TOTAL_COMPRESSED_SIZE))
-        TOTAL_SAVED_PERCENT=$((TOTAL_SAVED_SIZE * 100 / TOTAL_ORIGINAL_SIZE))
-        TOTAL_ORIGINAL_SIZE_MB=$(echo "scale=2; $TOTAL_ORIGINAL_SIZE/1048576" | bc)
-        TOTAL_COMPRESSED_SIZE_MB=$(echo "scale=2; $TOTAL_COMPRESSED_SIZE/1048576" | bc)
-        TOTAL_SAVED_SIZE_MB=$(echo "scale=2; $TOTAL_SAVED_SIZE/1048576" | bc)
-        
-        echo "| **总计** | **${TOTAL_ORIGINAL_SIZE_MB} MB** | **${TOTAL_COMPRESSED_SIZE_MB} MB** | **${TOTAL_SAVED_SIZE_MB} MB** | **${TOTAL_SAVED_PERCENT}%** |" >> optimization_metrics.md
+        if [ -z "$METRICS_FILES" ]; then
+          echo "⚠️ 警告: 未找到指标文件，无法生成优化报告"
+          echo "| 无数据 | - | - | - | - |" >> optimization_metrics.md
+        else
+          while read metrics_file; do
+            PLATFORM=$(basename $metrics_file .metrics)
+            
+            if [ ! -f "$metrics_file" ]; then
+              echo "⚠️ 警告: 指标文件不存在: $metrics_file"
+              continue
+            fi
+            
+            METRICS=$(cat $metrics_file)
+            
+            # 处理可能的格式错误
+            if [[ $METRICS != *","* ]]; then
+              echo "⚠️ 警告: 指标文件格式错误: $metrics_file"
+              continue
+            fi
+            
+            IFS=',' read -r ORIGINAL_SIZE COMPRESSED_SIZE SAVED_SIZE SAVED_PERCENT <<< "$METRICS"
+            
+            # 检查是否成功解析数值
+            if [[ ! "$ORIGINAL_SIZE" =~ ^[0-9]+$ ]]; then
+              echo "⚠️ 警告: 无法解析原始大小: $ORIGINAL_SIZE"
+              continue
+            fi
+            
+            ORIGINAL_SIZE_MB=$(echo "scale=2; $ORIGINAL_SIZE/1048576" | bc)
+            COMPRESSED_SIZE_MB=$(echo "scale=2; $COMPRESSED_SIZE/1048576" | bc)
+            SAVED_SIZE_MB=$(echo "scale=2; $SAVED_SIZE/1048576" | bc)
+            
+            echo "| $PLATFORM | ${ORIGINAL_SIZE_MB} MB | ${COMPRESSED_SIZE_MB} MB | ${SAVED_SIZE_MB} MB | ${SAVED_PERCENT}% |" >> optimization_metrics.md
+            
+            TOTAL_ORIGINAL_SIZE=$((TOTAL_ORIGINAL_SIZE + ORIGINAL_SIZE))
+            TOTAL_COMPRESSED_SIZE=$((TOTAL_COMPRESSED_SIZE + COMPRESSED_SIZE))
+          done <<< "$METRICS_FILES"
+          
+          # 只有在有数据的情况下才计算总计
+          if [ $TOTAL_ORIGINAL_SIZE -gt 0 ]; then
+            TOTAL_SAVED_SIZE=$((TOTAL_ORIGINAL_SIZE - TOTAL_COMPRESSED_SIZE))
+            TOTAL_SAVED_PERCENT=$((TOTAL_SAVED_SIZE * 100 / TOTAL_ORIGINAL_SIZE))
+            TOTAL_ORIGINAL_SIZE_MB=$(echo "scale=2; $TOTAL_ORIGINAL_SIZE/1048576" | bc)
+            TOTAL_COMPRESSED_SIZE_MB=$(echo "scale=2; $TOTAL_COMPRESSED_SIZE/1048576" | bc)
+            TOTAL_SAVED_SIZE_MB=$(echo "scale=2; $TOTAL_SAVED_SIZE/1048576" | bc)
+            
+            echo "| **总计** | **${TOTAL_ORIGINAL_SIZE_MB} MB** | **${TOTAL_COMPRESSED_SIZE_MB} MB** | **${TOTAL_SAVED_SIZE_MB} MB** | **${TOTAL_SAVED_PERCENT}%** |" >> optimization_metrics.md
+          fi
+        fi
         
         echo "✅ 优化指标收集完成"
         cat optimization_metrics.md
@@ -282,7 +472,7 @@ jobs:
         echo "## 🚀 使用方法" >> release_notes.md
         echo "" >> release_notes.md
         echo "1. 下载对应平台的可执行文件" >> release_notes.md
-        echo "2. 下载 \`cleaner_config.json\` 配置文件（可选）" >> release_notes.md
+        echo "2. 下载 \`reset_config.json\` 配置文件（可选）" >> release_notes.md
         echo "3. 双击运行（Windows）或在终端中执行" >> release_notes.md
         echo "4. 详细使用说明请参考 \`README.md\`" >> release_notes.md
         echo "" >> release_notes.md
