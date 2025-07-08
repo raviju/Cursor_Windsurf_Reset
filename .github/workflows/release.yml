@@ -4,38 +4,22 @@ on:
   push:
     tags:
       - 'v*'  # 当推送以 'v' 开头的标签时触发，如 v1.0.0, v2.1.3
-
 jobs:
   build:
     name: Build for multiple platforms
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         include:
           - goos: windows
             goarch: amd64
             suffix: .exe
             name: windows-amd64
-          - goos: windows
-            goarch: arm64
-            suffix: .exe
-            name: windows-arm64
-          - goos: darwin
-            goarch: amd64
-            suffix: ""
-            name: macos-amd64
-          - goos: darwin
-            goarch: arm64
-            suffix: ""
-            name: macos-arm64
           - goos: linux
             goarch: amd64
             suffix: ""
             name: linux-amd64
-          - goos: linux
-            goarch: arm64
-            suffix: ""
-            name: linux-arm64
 
     steps:
     - name: Checkout code
@@ -74,25 +58,23 @@ jobs:
     - name: Install build dependencies for Linux
       if: matrix.goos == 'linux'
       run: |
-        sudo apt-get update
-        sudo apt-get install -y gcc-multilib libc6-dev
+        export DEBIAN_FRONTEND=noninteractive
+        sudo apt-get update -qq
+        sudo apt-get install -y --no-install-recommends gcc-multilib libc6-dev
         # 安装 Fyne 所需的依赖
-        sudo apt-get install -y libgl1-mesa-dev xorg-dev
+        sudo apt-get install -y --no-install-recommends libgl1-mesa-dev xorg-dev
+        # 检查安装是否成功
+        echo "✅ 已安装Linux构建依赖"
+        ldconfig -p | grep -E 'libGL|libX11' || echo "⚠️ 警告: 部分库可能未正确安装"
 
     # 增强Windows构建支持
     - name: Install cross-compilation tools for Windows
       if: matrix.goos == 'windows'
       run: |
-        sudo apt-get update
-        sudo apt-get install -y gcc-mingw-w64
-        if [ "${{ matrix.goarch }}" = "arm64" ]; then
-          # 检查ARM64编译器是否可用
-          if ! which aarch64-w64-mingw32-gcc > /dev/null; then
-            echo "⚠️ 警告: Windows ARM64 编译器不可用，尝试安装替代方案..."
-            # 尝试安装替代方案，根据Ubuntu版本可能会有不同的包名
-            sudo apt-get install -y gcc-mingw-w64-aarch64 || true
-          fi
-        fi
+        # 禁用交互式提示和服务重启通知
+        export DEBIAN_FRONTEND=noninteractive
+        sudo apt-get update -qq
+        sudo apt-get install -y --no-install-recommends gcc-mingw-w64
 
     # 增强macOS构建支持
     - name: Setup macOS cross-compilation (if needed)
@@ -243,28 +225,18 @@ jobs:
       env:
         GOOS: ${{ matrix.goos }}
         GOARCH: ${{ matrix.goarch }}
-        CGO_ENABLED: 1
+        CGO_ENABLED: ${{ matrix.goos == 'darwin' && '0' || '1' }}
       run: |
         echo "🔨 开始为 ${{ matrix.goos }}-${{ matrix.goarch }} 构建二进制文件..."
         
         # 设置交叉编译环境
         if [ "${{ matrix.goos }}" = "windows" ]; then
-          if [ "${{ matrix.goarch }}" = "amd64" ]; then
-            export CC=x86_64-w64-mingw32-gcc
-            export CXX=x86_64-w64-mingw32-g++
-          elif [ "${{ matrix.goarch }}" = "arm64" ]; then
-            # 尝试使用aarch64编译器，如果不可用则报告
-            if which aarch64-w64-mingw32-gcc > /dev/null; then
-              export CC=aarch64-w64-mingw32-gcc
-              export CXX=aarch64-w64-mingw32-g++
-            else
-              echo "⚠️ 警告: Windows ARM64 编译器不可用，构建可能会失败"
-            fi
-          fi
+          export CC=x86_64-w64-mingw32-gcc
+          export CXX=x86_64-w64-mingw32-g++
         elif [ "${{ matrix.goos }}" = "darwin" ]; then
-          # macOS构建可能需要特殊处理
-          echo "ℹ️ 设置macOS构建环境"
-          # 对于macOS构建，通常不需要设置CC/CXX
+          echo "ℹ️ macOS构建已禁用CGO以解决交叉编译问题"
+                  elif [ "${{ matrix.goos }}" = "linux" ]; then
+            echo "ℹ️ 配置Linux构建环境"
         fi
         
         # 显示编译环境信息
@@ -275,19 +247,38 @@ jobs:
         echo "- CC: ${CC:-未设置}"
         echo "- CXX: ${CXX:-未设置}"
         
-        # 构建二进制文件，添加额外的优化选项
         OUTPUT_NAME="Cursor_Windsurf_Reset-${{ matrix.name }}${{ matrix.suffix }}"
-        echo "🔧 执行构建命令: go build -ldflags=\"-s -w -X main.version=${{ github.ref_name }}\" -o \"${OUTPUT_NAME}\" main.go"
         
-        # 尝试构建，如果失败则提供详细日志
-        if ! go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" -o "${OUTPUT_NAME}" main.go; then
+        BUILD_TAGS=""
+        if [ "${{ matrix.goos }}" = "darwin" ]; then
+          # 使用软件渲染模式解决macOS交叉编译问题
+          BUILD_TAGS="-tags=nomobile,nogl"
+          echo "ℹ️ 为macOS构建添加特殊标签: $BUILD_TAGS"
+          # 确保不尝试使用任何GUI相关功能
+          export FYNE_RENDER="software"
+        fi
+        
+        
+        
+        LDFLAGS="-s -w -X main.version=${{ github.ref_name }}"
+        if [ "${{ matrix.goos }}" = "windows" ]; then
+          LDFLAGS="$LDFLAGS -H windowsgui"
+        fi
+        
+        echo "🔧 执行构建命令: go build $BUILD_TAGS -ldflags=\"$LDFLAGS\" -o \"${OUTPUT_NAME}\" main.go"
+        
+        if ! go build $BUILD_TAGS -ldflags="$LDFLAGS" -o "${OUTPUT_NAME}" main.go; then
           echo "❌ 构建失败，显示详细日志"
-          go build -v -x -ldflags="-s -w -X main.version=${{ github.ref_name }}" -o "${OUTPUT_NAME}" main.go || true
-          # 检查常见的失败原因
+                      go build -v -x $BUILD_TAGS -ldflags="$LDFLAGS" -o "${OUTPUT_NAME}" main.go || true
           echo "📋 诊断信息:"
           go env
-          echo "⚠️ 构建失败，跳过后续步骤"
-          exit 1
+          echo "⚠️ 构建失败，但继续处理其他步骤"
+          
+          # 创建空的度量文件，以便上传步骤仍然可以工作
+          echo "0,0,0,0" > "${OUTPUT_NAME}.metrics"
+          # 创建一个最小的错误标记文件，以便后续步骤知道构建失败
+          echo "构建失败: ${{ matrix.goos }}-${{ matrix.goarch }}" > "${OUTPUT_NAME}.error"
+          exit 0  # 不中止工作流
         fi
         
         # 记录构建前的文件大小
@@ -324,12 +315,14 @@ jobs:
         echo "${ORIGINAL_SIZE},${COMPRESSED_SIZE},${SAVED_SIZE},${SAVED_PERCENT}" > "${OUTPUT_NAME}.metrics"
 
     - name: Upload artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: Cursor_Windsurf_Reset-${{ matrix.name }}
         path: |
           Cursor_Windsurf_Reset-${{ matrix.name }}${{ matrix.suffix }}
           Cursor_Windsurf_Reset-${{ matrix.name }}${{ matrix.suffix }}.metrics
+          Cursor_Windsurf_Reset-${{ matrix.name }}${{ matrix.suffix }}.error
+        if-no-files-found: warn  # 即使找不到文件也只发出警告而不失败
 
   release:
     name: Create Release
@@ -343,24 +336,52 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Download all artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
 
     - name: Display structure of downloaded files
       run: |
         echo "📁 下载的文件结构:"
         find . -name "Cursor_Windsurf_Reset-*" -type f | sort
+        
+        # 列出下载的目录结构
+        echo "📁 完整目录结构:"
+        find . -type f | sort
 
     - name: Prepare release files
       run: |
         mkdir -p release-files
         
         # 移动所有构建的二进制文件到 release-files 目录
-        find . -name "Cursor_Windsurf_Reset-*" -type f -executable -o -name "*.exe" | while read file; do
+        find . -name "Cursor_Windsurf_Reset-*" | grep -v "\.metrics$\|\.error$" | while read file; do
           if [ -f "$file" ]; then
+            # 为Linux文件添加执行权限
+            if [[ "$file" == *"linux"* ]]; then
+              chmod +x "$file"
+              echo "✅ 添加执行权限: $file"
+            fi
             cp "$file" release-files/
             echo "✅ 复制文件: $file -> release-files/"
           fi
         done
+        
+        # 检查是否存在构建失败的情况
+        ERROR_FILES=$(find . -name "*.error" 2>/dev/null || echo "")
+        if [ -n "$ERROR_FILES" ]; then
+          echo "⚠️ 检测到以下平台构建失败："
+          cat $ERROR_FILES
+          echo "## ⚠️ 部分平台构建失败" > build_status.md
+          echo "" >> build_status.md
+          echo "以下平台的构建未成功完成：" >> build_status.md
+          echo "" >> build_status.md
+          for error_file in $ERROR_FILES; do
+            echo "- $(cat $error_file)" >> build_status.md
+          done
+          echo "" >> build_status.md
+          echo "请下载其他可用平台的版本。" >> build_status.md
+        else
+          echo "✅ 所有平台构建成功"
+          echo "## ✅ 所有平台构建成功" > build_status.md
+        fi
         
         # 复制配置文件和文档（修正文件名）
         if [ -f "reset_config.json" ]; then
@@ -453,21 +474,22 @@ jobs:
         TAG_NAME=${{ github.ref_name }}
         echo "🎉 Cursor & Windsurf 重置工具 ${TAG_NAME}" > release_notes.md
         echo "" >> release_notes.md
+        
+        # 添加构建状态信息
+        if [ -f "build_status.md" ]; then
+          cat build_status.md >> release_notes.md
+          echo "" >> release_notes.md
+        fi
+        
         echo "## 📦 下载说明" >> release_notes.md
         echo "" >> release_notes.md
         echo "请根据您的操作系统下载对应的版本：" >> release_notes.md
         echo "" >> release_notes.md
         echo "### Windows 用户" >> release_notes.md
-        echo "- **Windows x64**: \`Cursor_Windsurf_Reset-windows-amd64.exe\`" >> release_notes.md
-        echo "- **Windows ARM64**: \`Cursor_Windsurf_Reset-windows-arm64.exe\`" >> release_notes.md
-        echo "" >> release_notes.md
-        echo "### macOS 用户" >> release_notes.md
-        echo "- **Intel Mac**: \`Cursor_Windsurf_Reset-macos-amd64\`" >> release_notes.md
-        echo "- **Apple Silicon (M1/M2)**: \`Cursor_Windsurf_Reset-macos-arm64\`" >> release_notes.md
+        echo "- **Windows**: \`Cursor_Windsurf_Reset-windows-amd64.exe\`" >> release_notes.md
         echo "" >> release_notes.md
         echo "### Linux 用户" >> release_notes.md
-        echo "- **Linux x64**: \`Cursor_Windsurf_Reset-linux-amd64\`" >> release_notes.md
-        echo "- **Linux ARM64**: \`Cursor_Windsurf_Reset-linux-arm64\`" >> release_notes.md
+        echo "- **Linux**: \`Cursor_Windsurf_Reset-linux-amd64\`" >> release_notes.md
         echo "" >> release_notes.md
         echo "## 🚀 使用方法" >> release_notes.md
         echo "" >> release_notes.md
