@@ -3,9 +3,9 @@ package gui
 import (
 	"context"
 	"fmt"
-	"log/slog"
+	"github.com/rs/zerolog/log"
 	"net/url"
-	"os"
+	_ "os"
 	"sort"
 	"strconv"
 	"strings"
@@ -31,7 +31,7 @@ type App struct {
 	mainWindow fyne.Window
 	engine     *cleaner.Engine
 	config     *config.Config
-	logger     *slog.Logger
+	logChan    chan string
 
 	// UI components
 	appData           []AppInfo
@@ -68,32 +68,47 @@ func NewApp() *App {
 
 	fyneApp.Settings().SetTheme(NewModernDarkTheme())
 
-	// Setup logger
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
-	}))
+	// Setup zerolog
+	logChan := make(chan string, 100)
+	guiWriter := &config.GuiLogWriter{LogChan: logChan}
+	config.SetupLogger(guiWriter)
 
 	// Load configuration
 	cfg, err := config.LoadConfig("")
 	if err != nil {
-		logger.Error("Failed to load configuration", "error", err)
+		log.Error().Err(err).Msg("Failed to load configuration")
 		cfg = config.GetDefaultConfig()
 	}
 
 	// Create cleaning engine
-	engine := cleaner.NewEngine(cfg, logger, false, false)
+	engine := cleaner.NewEngine(cfg, false, false)
 
 	app := &App{
 		fyneApp:       fyneApp,
 		engine:        engine,
 		config:        cfg,
-		logger:        logger,
+		logChan:       logChan,
 		selectedApps:  make(map[int]bool),
 		selectedIndex: -1, // 初始化为-1表示未选中
 	}
 
 	app.setupMainWindow()
+	go app.listenForLogs()
 	return app
+}
+
+func (app *App) listenForLogs() {
+	for logMsg := range app.logChan {
+		currentText := app.logText.Text
+		if len(currentText) > 20000 { // Increased limit
+			lines := strings.Split(currentText, "\n")
+			if len(lines) > 400 {
+				currentText = strings.Join(lines[len(lines)-300:], "\n")
+			}
+		}
+		app.logText.SetText(currentText + logMsg)
+		app.logText.CursorRow = len(strings.Split(app.logText.Text, "\n"))
+	}
 }
 
 // setupMainWindow sets up the main application window
@@ -216,7 +231,7 @@ func (app *App) createUI() {
 
 	// 初始化全选复选框
 	app.selectAllCheck = widget.NewCheck("全选", func(checked bool) {
-		app.log(fmt.Sprintf("全选状态变更: %v", checked))
+		log.Info().Msgf("全选状态变更: %v", checked)
 
 		// 重置选中状态
 		app.selectedApps = make(map[int]bool)
@@ -361,24 +376,24 @@ func (app *App) setupEventHandlers() {
 
 // performDiscovery performs application discovery
 func (app *App) performDiscovery() {
-	app.log("开始发现应用程序...")
+	log.Info().Msg("开始发现应用程序...")
 	app.statusLabel.SetText("正在发现应用程序...")
 
 	// 获取和显示所有应用数据路径
 	appDataPaths := app.engine.GetAppDataPaths()
 
 	// 打印原始路径数据
-	app.log(fmt.Sprintf("调试: 原始路径数据: %+v", appDataPaths))
+	log.Debug().Interface("appDataPaths", appDataPaths).Msg("Original app data paths")
 
 	// 重置应用数据列表
 	app.appData = make([]AppInfo, 0)
 
 	// 调试日志
-	app.log(fmt.Sprintf("调试: 发现了 %d 个应用", len(appDataPaths)))
+	log.Debug().Int("count", len(appDataPaths)).Msg("Discovered applications count")
 
 	// 详细输出所有应用
 	for name, path := range appDataPaths {
-		app.log(fmt.Sprintf("调试: 发现应用 %s: %s", name, path))
+		log.Debug().Str("name", name).Str("path", path).Msg("Discovered application path")
 	}
 
 	// 按顺序排列应用，确保顺序一致
@@ -394,8 +409,7 @@ func (app *App) performDiscovery() {
 		appPath := appDataPaths[appName]
 		appConfig := app.config.Applications[appName]
 
-		// 调试日志
-		app.log(fmt.Sprintf("调试: 处理应用 %s, 显示名称: %s", appName, appConfig.DisplayName))
+		log.Debug().Str("appName", appName).Str("displayName", appConfig.DisplayName).Msg("Processing application")
 
 		appInfo := AppInfo{
 			Name:        appName,
@@ -413,21 +427,20 @@ func (app *App) performDiscovery() {
 			size := app.engine.GetDirectorySize(appPath)
 			appInfo.Size = app.engine.FormatSize(size)
 
-			app.log(fmt.Sprintf("发现 %s 位于 %s (大小: %s, 运行中: %v)",
-				appInfo.DisplayName, appPath, appInfo.Size, appInfo.Running))
+			log.Info().Str("displayName", appInfo.DisplayName).Str("path", appPath).Str("size", appInfo.Size).Bool("running", appInfo.Running).Msg("Discovered application details")
 		} else {
 			appInfo.Size = "未知"
-			app.log(fmt.Sprintf("未找到 %s", appInfo.DisplayName))
+			log.Warn().Str("displayName", appInfo.DisplayName).Msg("Application not found")
 		}
 
 		app.appData = append(app.appData, appInfo)
-		app.log(fmt.Sprintf("调试: 添加应用到列表 [%d]: %s", len(app.appData)-1, appInfo.DisplayName))
+		log.Debug().Str("displayName", appInfo.DisplayName).Int("index", len(app.appData)-1).Msg("Appended application to list")
 	}
 
 	// 调试日志
-	app.log(fmt.Sprintf("调试: 共添加了 %d 个应用到列表中", len(app.appData)))
+	log.Debug().Int("count", len(app.appData)).Msg("Total applications in list")
 	for i, appInfo := range app.appData {
-		app.log(fmt.Sprintf("调试: 应用[%d]: %s, 路径: %s", i, appInfo.DisplayName, appInfo.Path))
+		log.Debug().Int("index", i).Str("displayName", appInfo.DisplayName).Str("path", appInfo.Path).Msg("Final app list item")
 	}
 
 	// 清空选中状态
@@ -469,7 +482,7 @@ func (app *App) onDiscover() {
 	app.discoverButton.SetText("正在扫描...")
 
 	// 显示加载提示
-	app.log("准备开始应用扫描...")
+	log.Info().Msg("Discovery process started by user")
 
 	// 在后台执行扫描，避免UI卡顿
 	go func() {
@@ -493,11 +506,10 @@ func (app *App) updateCleanButton() {
 	hasSelected := false
 
 	// 调试日志 - 输出所有应用信息
-	app.log("调试: 当前应用列表状态:")
+	log.Debug().Msg("Updating clean button state")
 	for i, appInfo := range app.appData {
 		isSelected := app.selectedApps[i]
-		app.log(fmt.Sprintf("调试: [%d] %s: 已找到=%v, 运行中=%v, 已选中=%v",
-			i, appInfo.DisplayName, appInfo.Found, appInfo.Running, isSelected))
+		log.Debug().Int("index", i).Str("displayName", appInfo.DisplayName).Bool("found", appInfo.Found).Bool("running", appInfo.Running).Bool("selected", isSelected).Msg("App state for button update")
 	}
 
 	for _, selected := range app.selectedApps {
@@ -518,11 +530,11 @@ func (app *App) updateCleanButton() {
 			}
 		}
 		app.cleanButton.SetText(fmt.Sprintf("重置选中 (%d)", count))
-		app.log(fmt.Sprintf("调试: 已选中 %d 个应用", count))
+		log.Debug().Int("count", count).Msg("Clean button enabled")
 	} else {
 		app.cleanButton.Disable()
 		app.cleanButton.SetText("重置选中")
-		app.log("调试: 没有选中任何应用")
+		log.Debug().Msg("Clean button disabled")
 	}
 }
 
@@ -604,13 +616,13 @@ func (app *App) onClean() {
 
 // performCleanup performs the actual cleanup operation
 func (app *App) performCleanup(appInfo AppInfo) {
-	app.log(fmt.Sprintf("开始重置: %s", appInfo.DisplayName))
+	log.Info().Str("displayName", appInfo.DisplayName).Msg("Starting cleanup")
 	app.statusLabel.SetText(fmt.Sprintf("正在重置: %s", appInfo.DisplayName))
 	app.progressBar.Show()
 	app.progressBar.SetValue(0)
 
 	// Update engine settings
-	app.engine = cleaner.NewEngine(app.config, app.logger, false, false)
+	app.engine = cleaner.NewEngine(app.config, false, false)
 
 	// Start progress monitoring
 	go app.monitorProgress()
@@ -619,9 +631,9 @@ func (app *App) performCleanup(appInfo AppInfo) {
 	go func() {
 		err := app.engine.CleanApplication(context.Background(), appInfo.Name)
 		if err != nil {
-			app.log(fmt.Sprintf("重置错误: %v", err))
+			log.Error().Err(err).Str("displayName", appInfo.DisplayName).Msg("Cleanup failed")
 		} else {
-			app.log(fmt.Sprintf("重置完成: %s", appInfo.DisplayName))
+			log.Info().Str("displayName", appInfo.DisplayName).Msg("Cleanup completed")
 		}
 	}()
 }
@@ -632,7 +644,7 @@ func (app *App) monitorProgress() {
 	for update := range progressChan {
 		app.progressBar.SetValue(update.Progress / 100.0)
 		app.statusLabel.SetText(update.Message)
-		app.log(fmt.Sprintf("[%s] %s", update.Phase, update.Message))
+		log.Info().Str("phase", update.Phase).Str("message", update.Message).Float64("progress", update.Progress).Msg("Cleanup progress")
 	}
 }
 
@@ -668,12 +680,12 @@ func (app *App) onConfig() {
 			}
 			app.config.SafetyOptions.RequireConfirmation = confirmCheck.Checked
 
-			// 保存配置
 			err = config.SaveConfig(app.config, "")
 			if err != nil {
 				dialog.ShowError(fmt.Errorf("保存配置失败: %v", err), app.mainWindow)
+				log.Error().Err(err).Msg("Failed to save config")
 			} else {
-				app.log("配置已更新")
+				log.Info().Msg("Configuration saved")
 			}
 		}
 	}, app.mainWindow)
@@ -786,24 +798,22 @@ func (app *App) GetMainWindow() fyne.Window {
 	return app.mainWindow
 }
 
-// createAppListArea 重新设计应用列表区域，使其高度固定并仅显示两个应用条目
 func (app *App) createAppListArea() *fyne.Container {
 	// 垂直布局容器，将包含所有应用卡片
 	appsContainer := container.NewVBox()
 
 	// 确保appData已经被初始化
 	if len(app.appData) == 0 {
-		app.log("警告: 应用列表为空，这可能是一个初始化问题")
+		log.Warn().Msg("appData is empty, cannot create app list")
 
 		// 尝试从配置中手动创建应用列表
 		if app.config != nil && len(app.config.Applications) > 0 {
-			app.log(fmt.Sprintf("尝试从配置中创建应用列表（%d个应用）", len(app.config.Applications)))
+			log.Info().Int("count", len(app.config.Applications)).Msg("Attempting to create app list from config")
 
 			// 使用排序的应用名称
 			appNames := make([]string, 0, len(app.config.Applications))
 			for appName := range app.config.Applications {
 				appNames = append(appNames, appName)
-				app.log(fmt.Sprintf("添加应用: %s", appName))
 			}
 			// 排序应用名称
 			sort.Strings(appNames)
@@ -814,7 +824,7 @@ func (app *App) createAppListArea() *fyne.Container {
 			// 按排序后的名称添加应用
 			for _, appName := range appNames {
 				appConfig := app.config.Applications[appName]
-				app.log(fmt.Sprintf("处理应用: %s (%s)", appName, appConfig.DisplayName))
+				log.Debug().Str("appName", appName).Str("displayName", appConfig.DisplayName).Msg("Processing app from config")
 
 				// 创建应用信息对象
 				appInfo := AppInfo{
@@ -833,14 +843,14 @@ func (app *App) createAppListArea() *fyne.Container {
 
 	// 确保appData不为空
 	if len(app.appData) == 0 {
-		app.log("警告: 无法创建应用列表，将使用空列表")
+		log.Error().Msg("Unable to create app list, appData is still empty")
 		return container.NewVBox(widget.NewLabel("找不到应用"))
 	}
 
 	// 调试日志
-	app.log(fmt.Sprintf("创建应用列表区域，共有 %d 个应用", len(app.appData)))
+	log.Debug().Int("count", len(app.appData)).Msg("Creating app list area")
 	for i, appInfo := range app.appData {
-		app.log(fmt.Sprintf("[%d] %s", i, appInfo.DisplayName))
+		log.Debug().Int("index", i).Str("displayName", appInfo.DisplayName).Msg("App list item")
 	}
 
 	// 计算已找到和可重置的应用数量
@@ -880,7 +890,7 @@ func (app *App) createAppListArea() *fyne.Container {
 		checkBox := widget.NewCheck("", func(checked bool) {
 			app.selectedApps[index] = checked
 			app.updateCleanButton()
-			app.log(fmt.Sprintf("选择变更: [%d] %s = %v", index, appInfo.DisplayName, checked))
+			log.Debug().Int("index", index).Str("displayName", appInfo.DisplayName).Bool("checked", checked).Msg("Checkbox toggled")
 		})
 
 		// 设置复选框的选中状态
@@ -1015,13 +1025,13 @@ func (app *App) createAppListArea() *fyne.Container {
 func (app *App) refreshAppList() {
 	// 如果是初始化阶段，不执行操作
 	if app.mainWindow == nil || app.mainWindow.Content() == nil {
-		app.log("警告: 无法刷新应用列表 - 窗口未初始化")
+		log.Warn().Msg("Cannot refresh app list - window not initialized")
 		return
 	}
 
 	// 记录当前时间，用于性能分析
 	startTime := time.Now()
-	app.log("开始刷新应用列表...")
+	log.Info().Msg("Refreshing app list")
 
 	// 重新创建应用列表区域
 	appListArea := app.createAppListArea()
@@ -1032,9 +1042,9 @@ func (app *App) refreshAppList() {
 		// 我们需要替换中央内容（第一个对象），同时保留底部控件
 		app.mainAreaContainer.Objects[0] = appListArea
 		app.mainAreaContainer.Refresh()
-		app.log("应用列表已更新")
+		log.Info().Msg("App list UI refreshed")
 	} else {
-		app.log("警告: 主区域容器为空，无法刷新")
+		log.Warn().Msg("Main area container is nil, cannot refresh UI")
 	}
 
 	// 更新重置按钮状态
@@ -1042,5 +1052,5 @@ func (app *App) refreshAppList() {
 
 	// 记录完成时间
 	elapsedTime := time.Since(startTime)
-	app.log(fmt.Sprintf("刷新应用列表完成，耗时: %v", elapsedTime))
+	log.Info().Dur("duration", elapsedTime).Msg("App list refresh finished")
 }

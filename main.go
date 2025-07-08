@@ -4,27 +4,25 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log/slog"
 	"os"
 	"strings"
 
 	"Cursor_Windsurf_Reset/cleaner"
 	"Cursor_Windsurf_Reset/config"
 	"Cursor_Windsurf_Reset/gui"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 func main() {
-
 	os.Setenv("LANG", "zh_CN.UTF-8")
 	os.Setenv("LANGUAGE", "zh_CN.UTF-8")
 	os.Setenv("LC_ALL", "zh_CN.UTF-8")
 
-	// Fyne GUI设置
-	os.Setenv("FYNE_FONT", "")      // 使用系统字体
-	os.Setenv("FYNE_SCALE", "1.1")  // 使用更紧凑的界面比例
-	os.Setenv("FYNE_THEME", "dark") // 使用暗色主题
+	os.Setenv("FYNE_FONT", "")
+	os.Setenv("FYNE_SCALE", "1.1")
+	os.Setenv("FYNE_THEME", "dark")
 
-	// Parse command line flags
 	var (
 		configPath = flag.String("config", "", "Configuration file path")
 		discover   = flag.Bool("discover", false, "Discover and report application data locations")
@@ -39,34 +37,25 @@ func main() {
 	)
 	flag.Parse()
 
-	// Show version
 	if *version {
 		fmt.Println("Cursor & Windsurf Data Cleaner v2.0.0 (Go)")
 		fmt.Println("Built with Go and Fyne GUI framework")
 		return
 	}
 
-	// Setup logger
-	logLevel := slog.LevelInfo
+	logLevel := zerolog.InfoLevel
 	if *verbose {
-		logLevel = slog.LevelDebug
+		logLevel = zerolog.DebugLevel
 	}
+	zerolog.SetGlobalLevel(logLevel)
 
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: logLevel,
-	}))
-
-	// Load configuration
 	cfg, err := config.LoadConfig(*configPath)
 	if err != nil {
-		logger.Error("Failed to load configuration", "error", err)
-		os.Exit(1)
+		log.Fatal().Err(err).Msg("Failed to load configuration")
 	}
 
-	// Create cleaning engine
-	engine := cleaner.NewEngine(cfg, logger, *dryRun, *verbose)
+	engine := cleaner.NewEngine(cfg, *dryRun, *verbose)
 
-	// Test SQLite connection if requested
 	if *testSQLite != "" {
 		fmt.Printf("Testing SQLite connection to: %s\n", *testSQLite)
 		err := engine.TestSQLiteConnection(*testSQLite)
@@ -78,18 +67,15 @@ func main() {
 		return
 	}
 
-	// CLI mode
 	if *cli || *discover || *clean != "" || *cleanAll {
-		runCLI(engine, cfg, logger, discover, clean, cleanAll, noConfirm, dryRun)
+		runCLI(engine, cfg, discover, clean, cleanAll, noConfirm, dryRun)
 		return
 	}
 
-	// GUI mode
 	runGUI()
 }
 
-// runCLI runs the command line interface
-func runCLI(engine *cleaner.Engine, cfg *config.Config, logger *slog.Logger,
+func runCLI(engine *cleaner.Engine, cfg *config.Config,
 	discover *bool, clean *string, cleanAll *bool, noConfirm *bool, dryRun *bool) {
 
 	fmt.Println("🧹 Cursor & Windsurf Data Cleaner v2.0.0 (Go)")
@@ -99,13 +85,11 @@ func runCLI(engine *cleaner.Engine, cfg *config.Config, logger *slog.Logger,
 	fmt.Println("   Use this tool responsibly and in accordance with application ToS.")
 	fmt.Println()
 
-	// Discovery mode
 	if *discover {
 		performDiscovery(engine, cfg)
 		return
 	}
 
-	// Get available applications
 	appDataPaths := engine.GetAppDataPaths()
 	availableApps := make([]string, 0)
 	for appName, appPath := range appDataPaths {
@@ -119,9 +103,7 @@ func runCLI(engine *cleaner.Engine, cfg *config.Config, logger *slog.Logger,
 		os.Exit(1)
 	}
 
-	// Determine which applications to clean
 	var appsToClean []string
-
 	if *clean != "" {
 		found := false
 		for _, app := range availableApps {
@@ -138,7 +120,6 @@ func runCLI(engine *cleaner.Engine, cfg *config.Config, logger *slog.Logger,
 	} else if *cleanAll {
 		appsToClean = availableApps
 	} else {
-		// Interactive mode
 		performDiscovery(engine, cfg)
 		fmt.Println("\nAvailable applications to clean:")
 		for i, app := range availableApps {
@@ -164,7 +145,6 @@ func runCLI(engine *cleaner.Engine, cfg *config.Config, logger *slog.Logger,
 		}
 	}
 
-	// Confirmation
 	if !*noConfirm {
 		safetyOptions := cfg.SafetyOptions
 		if safetyOptions.RequireConfirmation {
@@ -185,19 +165,16 @@ func runCLI(engine *cleaner.Engine, cfg *config.Config, logger *slog.Logger,
 		}
 	}
 
-	// Perform cleaning
 	overallSuccess := true
 	for _, appName := range appsToClean {
 		fmt.Printf("\n🧹 Starting cleanup for %s...\n", appName)
 
-		// Check if app is running
 		if engine.IsAppRunning(appName) {
 			fmt.Printf("❌ %s is currently running. Please close it first.\n", appName)
 			overallSuccess = false
 			continue
 		}
 
-		// Perform cleanup
 		err := engine.CleanApplication(context.Background(), appName)
 		if err != nil {
 			fmt.Printf("❌ Failed to clean %s: %v\n", appName, err)
@@ -207,7 +184,6 @@ func runCLI(engine *cleaner.Engine, cfg *config.Config, logger *slog.Logger,
 		}
 	}
 
-	// Summary
 	fmt.Println("\n===== Cleaning Summary =====")
 	if overallSuccess {
 		fmt.Printf("✅ Successfully cleaned data for: %s\n", appsToClean[0])
@@ -219,7 +195,6 @@ func runCLI(engine *cleaner.Engine, cfg *config.Config, logger *slog.Logger,
 	}
 }
 
-// performDiscovery performs application discovery and reports results
 func performDiscovery(engine *cleaner.Engine, cfg *config.Config) {
 	fmt.Println("=== Application Data Discovery ===")
 
@@ -231,14 +206,12 @@ func performDiscovery(engine *cleaner.Engine, cfg *config.Config) {
 		if appPath != "" {
 			fmt.Printf("%s: Found at %s\n", displayName, appPath)
 
-			// Check if app is running
 			if engine.IsAppRunning(appName) {
 				fmt.Printf("  %s is currently running\n", displayName)
 			} else {
 				fmt.Printf("  %s is not running\n", displayName)
 			}
 
-			// Report size
 			size := engine.GetDirectorySize(appPath)
 			fmt.Printf("  💾 Size: %s\n", engine.FormatSize(size))
 		} else {
@@ -249,7 +222,6 @@ func performDiscovery(engine *cleaner.Engine, cfg *config.Config) {
 	fmt.Printf("📁 Backup directory: %s\n", engine.GetBackupDirectory())
 }
 
-// runGUI runs the graphical user interface
 func runGUI() {
 	app := gui.NewApp()
 	app.Run()
