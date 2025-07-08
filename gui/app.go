@@ -4,9 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/rs/zerolog"
-	_ "github.com/rs/zerolog/log"
 	"net/url"
-	_ "os"
 	"sort"
 	"strconv"
 	"strings"
@@ -74,7 +72,6 @@ func NewApp() *App {
 	// Setup zerolog
 	logChan := make(chan string, 100)
 	guiWriter := &config.GuiLogWriter{LogChan: logChan}
-	// config.SetupLogger(guiWriter) // 移除全局log.Logger覆盖
 
 	// 为GUI日志单独创建ConsoleWriter，输出纯文本LEVEL: message格式
 	consoleWriter := zerolog.ConsoleWriter{
@@ -143,7 +140,6 @@ func (app *App) setupMainWindow() {
 
 	// 设置固定最小窗口大小，确保UI元素不会挤压变形
 	app.mainWindow.SetFixedSize(false)
-	// Fyne不支持SetMinSize，使用Resize代替
 	app.mainWindow.Resize(fyne.NewSize(750, 550))
 
 	// Create UI components

@@ -3,10 +3,9 @@ package config
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/rs/zerolo
 	"os"
 	"path/filepath"
-	"io"
+)
 
 // Config represents the main configuration structure
 type Config struct {
@@ -290,14 +289,4 @@ func (w *GuiLogWriter) Write(p []byte) (n int, err error) {
 		// 通道满时丢弃日志，防止阻塞
 		return len(p), nil
 	}
-}
-
-// SetupLogger 设置 zerolog 全局日志输出到指定 writer
-// ⚠️ 注意：不建议在主流程中调用此方法覆盖全局log.Logger，
-// 仅供特殊场景（如GUI日志通道、测试等）使用，避免影响终端日志格式。
-func SetupLogger(writer io.Writer) {
-	if writer == nil {
-		return
-	}
-	log.Logger = log.Output(writer)
 }

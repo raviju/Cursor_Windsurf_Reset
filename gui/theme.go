@@ -125,32 +125,3 @@ func (t *ModernDarkTheme) Size(name fyne.ThemeSizeName) float32 {
 func NewModernDarkTheme() fyne.Theme {
 	return &ModernDarkTheme{}
 }
-
-// 保留原来的中文主题实现，以便可以切换
-// ChineseTheme is a custom theme that supports Chinese characters.
-type ChineseTheme struct{}
-
-// Font returns the font for the specified style.
-func (t *ChineseTheme) Font(style fyne.TextStyle) fyne.Resource {
-	return ChineseFontResource
-}
-
-// Color returns the color for the specified name and variant.
-func (t *ChineseTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
-	return theme.DefaultTheme().Color(name, variant)
-}
-
-// Icon returns the icon for the specified name.
-func (t *ChineseTheme) Icon(name fyne.ThemeIconName) fyne.Resource {
-	return theme.DefaultTheme().Icon(name)
-}
-
-// Size returns the size for the specified name.
-func (t *ChineseTheme) Size(name fyne.ThemeSizeName) float32 {
-	return theme.DefaultTheme().Size(name)
-}
-
-// NewChineseTheme creates a new Chinese-supporting theme.
-func NewChineseTheme() fyne.Theme {
-	return &ChineseTheme{}
-}

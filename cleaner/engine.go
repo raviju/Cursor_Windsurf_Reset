@@ -8,12 +8,10 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
-	"syscall"
 	"time"
 
 	"Cursor_Windsurf_Reset/config"
@@ -103,7 +101,6 @@ func (e *Engine) discoverAppDataPaths() {
 		}
 
 		for _, pathTemplate := range paths {
-			// 使用通用路径解析函数
 			expandedPath := e.expandPathTemplate(pathTemplate)
 			log.Debug().Str("app", appName).Str("template", pathTemplate).Str("expanded", expandedPath).Msg("Checking path")
 
@@ -124,7 +121,6 @@ func (e *Engine) discoverAppDataPaths() {
 
 // expandPathTemplate 是一个通用的路径模板解析函数，可以处理环境变量和特殊路径符号
 func (e *Engine) expandPathTemplate(template string) string {
-	// 处理 ~ 符号（家目录）
 	if strings.HasPrefix(template, "~") {
 		homeDir, err := os.UserHomeDir()
 		if err == nil {
@@ -134,7 +130,6 @@ func (e *Engine) expandPathTemplate(template string) string {
 		}
 	}
 
-	// 处理环境变量 - 支持 %VAR% 格式（Windows风格）
 	result := os.Expand(template, func(key string) string {
 		value := os.Getenv(key)
 		if value == "" {
@@ -143,19 +138,17 @@ func (e *Engine) expandPathTemplate(template string) string {
 		return value
 	})
 
-	// 处理Windows风格的环境变量 %VAR%
 	re := regexp.MustCompile(`%([^%]+)%`)
 	result = re.ReplaceAllStringFunc(result, func(match string) string {
-		envVar := match[1 : len(match)-1] // 去掉%号
+		envVar := match[1 : len(match)-1]
 		value := os.Getenv(envVar)
 		if value == "" {
 			log.Debug().Str("var", envVar).Msg("Environment variable not found")
-			return match // 如果找不到，保留原样
+			return match
 		}
 		return value
 	})
 
-	// 确保正确的路径分隔符
 	result = filepath.FromSlash(result)
 
 	return result
@@ -182,25 +175,9 @@ func (e *Engine) IsAppRunning(appName string) bool {
 	return false
 }
 
-// isProcessRunning checks if a process is running
-func (e *Engine) isProcessRunning(processName string) bool {
-	var cmd *exec.Cmd
-
-	switch runtime.GOOS {
-	case "windows":
-		cmd = exec.Command("tasklist", "/FI", fmt.Sprintf("IMAGENAME eq %s", processName))
-		cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
-	default:
-		cmd = exec.Command("pgrep", "-i", processName)
-	}
-
-	output, err := cmd.Output()
-	if err != nil {
-		return false
-	}
-
-	return strings.Contains(strings.ToLower(string(output)), strings.ToLower(processName))
-}
+// isProcessRunning is implemented in platform-specific files:
+// - process_windows.go for Windows
+// - process_unix.go for non-Windows systems
 
 // CreateBackup creates a backup of a file or directory
 func (e *Engine) CreateBackup(sourcePath, backupName string) (string, error) {
