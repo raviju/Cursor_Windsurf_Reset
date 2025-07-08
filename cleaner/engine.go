@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"syscall"
 	"time"
 
 	"Cursor_Windsurf_Reset/config"
@@ -188,6 +189,7 @@ func (e *Engine) isProcessRunning(processName string) bool {
 	switch runtime.GOOS {
 	case "windows":
 		cmd = exec.Command("tasklist", "/FI", fmt.Sprintf("IMAGENAME eq %s", processName))
+		cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
 	default:
 		cmd = exec.Command("pgrep", "-i", processName)
 	}
