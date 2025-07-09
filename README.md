@@ -1,7 +1,7 @@
 # Cursor & Windsurf Reset Tool
 
 An advanced tool for resetting Cursor and Windsurf application data, supporting the latest versions of Cursor and Windsurf.
-[中文说明](https://github.com/whispin/Cursor_Windsurf_Reset/README_ZH.md)
+[中文说明](https://github.com/whispin/Cursor_Windsurf_Reset/blob/main/README_ZH.md)
 ## ✨ Interface Screenshot
 
 ![Interface Screenshot](https://github.com/whispin/Cursor_Windsurf_Reset/blob/main/screenshot/homepage.jpg?raw=true)
