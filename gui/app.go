@@ -1,8 +1,10 @@
 package gui
 
 import (
+	appi18n "Cursor_Windsurf_Reset/i18n"
 	"context"
 	"fmt"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
 	"github.com/rs/zerolog"
 	"net/url"
 	"sort"
@@ -24,34 +26,34 @@ import (
 	"image/color"
 )
 
-// App represents the main GUI application
 type App struct {
 	fyneApp    fyne.App
 	mainWindow fyne.Window
 	engine     *cleaner.Engine
 	config     *config.Config
 	logChan    chan string
+	bundle     *i18n.Bundle
+	localizer  *appi18n.LocalizerWrapper
 
-	guiLogger zerolog.Logger // 新增GUI专用logger
+	guiLogger zerolog.Logger
 
-	// UI components
-	appData           []AppInfo
-	progressBar       *widget.ProgressBar
-	statusLabel       *widget.Label
-	logText           *widget.Entry
-	cleanButton       *widget.Button
-	discoverButton    *widget.Button
-	configButton      *widget.Button
-	aboutButton       *widget.Button
-	helpButton        *widget.Button
-	selectedIndex     int
-	mainAreaContainer *fyne.Container
+	appData            []AppInfo
+	progressBar        *widget.ProgressBar
+	statusLabel        *widget.Label
+	logText            *widget.Entry
+	logScrollContainer *container.Scroll
+	cleanButton        *widget.Button
+	discoverButton     *widget.Button
+	configButton       *widget.Button
+	aboutButton        *widget.Button
+	helpButton         *widget.Button
+	selectedIndex      int
+	mainAreaContainer  fyne.CanvasObject
 
 	selectedApps   map[int]bool
 	selectAllCheck *widget.Check
 }
 
-// AppInfo represents application information for the UI
 type AppInfo struct {
 	Name        string
 	DisplayName string
@@ -59,21 +61,25 @@ type AppInfo struct {
 	Size        string
 	Running     bool
 	Found       bool
-	Selected    bool // 新增选中状态字段
 }
 
-// NewApp creates a new GUI application
 func NewApp() *App {
 	fyneApp := app.New()
 	fyneApp.SetIcon(theme.ComputerIcon())
 
 	fyneApp.Settings().SetTheme(NewModernDarkTheme())
 
-	// Setup zerolog
+	bundle, err := appi18n.Init("i18n")
+	if err != nil {
+		panic(err)
+	}
+
+	systemLang := appi18n.DetectSystemLanguage()
+	localizer := appi18n.NewLocalizer(bundle, systemLang)
+
 	logChan := make(chan string, 100)
 	guiWriter := &config.GuiLogWriter{LogChan: logChan}
 
-	// 为GUI日志单独创建ConsoleWriter，输出纯文本LEVEL: message格式
 	consoleWriter := zerolog.ConsoleWriter{
 		Out:             guiWriter,
 		NoColor:         true,
@@ -98,57 +104,83 @@ func NewApp() *App {
 		cfg = config.GetDefaultConfig()
 	}
 
-	// Create cleaning engine
-	engine := cleaner.NewEngine(cfg, false, false)
+	engine := cleaner.NewEngine(cfg, false, false, localizer)
 
 	app := &App{
 		fyneApp:       fyneApp,
 		engine:        engine,
 		config:        cfg,
 		logChan:       logChan,
-		guiLogger:     guiLogger, // 赋值
+		bundle:        bundle,
+		localizer:     localizer,
+		guiLogger:     guiLogger,
 		selectedApps:  make(map[int]bool),
-		selectedIndex: -1, // 初始化为-1表示未选中
+		selectedIndex: -1,
 	}
 
 	app.setupMainWindow()
 	go app.listenForLogs()
+
+	go func() {
+		time.Sleep(200 * time.Millisecond)
+		langName := "English"
+		if systemLang == "zh" {
+			langName = "中文"
+		}
+		app.logMessage("INFO", "LogMessage", map[string]interface{}{
+			"Message": fmt.Sprintf("检测到系统语言: %s (%s)", langName, systemLang),
+		})
+	}()
+
 	return app
+}
+
+func (app *App) createEnhancedLogWidget() *widget.Entry {
+	logText := widget.NewMultiLineEntry()
+	logText.Disable()
+	logText.SetPlaceHolder(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "LogPlaceholder"}))
+
+	logText.TextStyle = fyne.TextStyle{
+		Monospace: true,
+	}
+
+	logText.Wrapping = fyne.TextWrapWord
+
+	return logText
 }
 
 func (app *App) listenForLogs() {
 	for logMsg := range app.logChan {
-		currentText := app.logText.Text
-		if len(currentText) > 20000 { // Increased limit
-			lines := strings.Split(currentText, "\n")
-			if len(lines) > 400 {
-				currentText = strings.Join(lines[len(lines)-300:], "\n")
+		// 在UI线程中执行文本更新和滚动操作
+		func(msg string) {
+			currentText := app.logText.Text
+			if len(currentText) > 20000 {
+				lines := strings.Split(currentText, "\n")
+				if len(lines) > 400 {
+					currentText = strings.Join(lines[len(lines)-300:], "\n")
+				}
 			}
-		}
-		app.logText.SetText(currentText + logMsg)
-		app.logText.CursorRow = len(strings.Split(app.logText.Text, "\n"))
+			app.logText.SetText(currentText + msg)
+			app.logText.CursorRow = len(strings.Split(app.logText.Text, "\n"))
+
+			// 自动滚动到底部显示最新日志
+			if app.logScrollContainer != nil {
+				app.logScrollContainer.ScrollToBottom()
+			}
+		}(logMsg)
 	}
 }
 
-// setupMainWindow sets up the main application window
 func (app *App) setupMainWindow() {
-	app.mainWindow = app.fyneApp.NewWindow("Cursor & Windsurf 数据重置工具")
-	app.mainWindow.Resize(fyne.NewSize(860, 600)) // 调整为更紧凑的高度
+	app.mainWindow = app.fyneApp.NewWindow(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "WindowTitle"}))
+	app.mainWindow.Resize(fyne.NewSize(800, 600))
 	app.mainWindow.CenterOnScreen()
 	app.mainWindow.SetIcon(theme.ComputerIcon())
 	app.mainWindow.SetMaster()
-
-	// 设置固定最小窗口大小，确保UI元素不会挤压变形
 	app.mainWindow.SetFixedSize(false)
-	app.mainWindow.Resize(fyne.NewSize(750, 550))
 
-	// Create UI components
-	app.createUI()
+	app.mainWindow.SetContent(app.createContent())
 
-	// Set up event handlers
-	app.setupEventHandlers()
-
-	// 延迟执行初始扫描，等待UI完全初始化
 	go func() {
 		time.Sleep(100 * time.Millisecond)
 		// Initial discovery
@@ -156,34 +188,83 @@ func (app *App) setupMainWindow() {
 	}()
 }
 
-// ModernButton 创建一个带有悬停效果和更现代外观的按钮
 func ModernButton(text string, icon fyne.Resource, onTapped func()) *widget.Button {
 	button := widget.NewButtonWithIcon(text, icon, onTapped)
 
-	// 设置按钮重要性为高，使其有更明显的视觉效果
 	button.Importance = widget.MediumImportance
 
 	return button
 }
 
-// createUI creates the main UI layout
-func (app *App) createUI() {
-	// 头部区域 - 使用垂直布局添加图标和标题
-	// 初始化帮助和关于按钮
+func (app *App) createContent() fyne.CanvasObject {
+
+	app.progressBar = widget.NewProgressBar()
+	app.progressBar.Hide()
+
+	app.progressBar.Resize(fyne.NewSize(200, 20))
+
+	app.statusLabel = widget.NewLabel(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Ready"}))
+	app.statusLabel.Hide()
+
+	app.discoverButton = ModernButton(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "DiscoverApps"}), theme.SearchIcon(), app.onDiscover)
+	app.cleanButton = ModernButton(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ResetSelected"}), theme.DeleteIcon(), app.onClean)
+	app.configButton = ModernButton(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Settings"}), theme.SettingsIcon(), app.onConfig)
+
+	app.discoverButton.Importance = widget.HighImportance
+	app.cleanButton.Importance = widget.DangerImportance
+	app.configButton.Importance = widget.MediumImportance
+
+	app.cleanButton.Disable()
+
 	app.helpButton = ModernButton("", theme.HelpIcon(), app.onHelp)
 	app.aboutButton = ModernButton("", theme.InfoIcon(), app.onAbout)
 
-	// 创建应用标题，增加大小和样式
+	app.logText = app.createEnhancedLogWidget()
+
+	// 初始化全选复选框
+	app.selectAllCheck = widget.NewCheck(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "SelectAll"}), func(checked bool) {
+		app.logMessage("INFO", "LogSelectAllChanged", map[string]interface{}{"Status": checked})
+
+		// 保存修改前的状态，用于对比找出哪些项需要刷新
+		oldSelectedState := make(map[int]bool)
+		for id, selected := range app.selectedApps {
+			oldSelectedState[id] = selected
+		}
+
+		// 更新选中状态
+		app.selectedApps = make(map[int]bool)
+		for i, appInfo := range app.appData {
+			if appInfo.Found && !appInfo.Running {
+				app.selectedApps[i] = checked
+			}
+		}
+
+		// 查找到当前可见的列表
+		listObj := app.findAppList()
+		if listObj != nil {
+			// 只刷新状态发生变化的项
+			for i, appInfo := range app.appData {
+				if appInfo.Found && !appInfo.Running {
+					// 如果状态有变化或是新增状态
+					if oldSelectedState[i] != app.selectedApps[i] || !oldSelectedState[i] {
+						listObj.RefreshItem(i)
+					}
+				}
+			}
+		} else {
+			// 如果找不到列表对象，则整体刷新
+			app.refreshAppList()
+		}
+
+		app.updateCleanButton()
+	})
+
+	// 1. 创建头部
 	appTitle := widget.NewLabelWithStyle(
-		"Cursor & Windsurf 数据重置工具",
+		app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "WindowTitle"}),
 		fyne.TextAlignCenter,
-		fyne.TextStyle{Bold: true},
-	)
+		fyne.TextStyle{Bold: true})
 
-	// 如果需要更大的标题，可以创建一个更大的标签
-	// 使用主题的标题大小
-
-	// 美化头部布局，增加头部间距
 	header := container.NewVBox(
 		container.NewPadded(
 			container.NewHBox(
@@ -191,158 +272,121 @@ func (app *App) createUI() {
 				appTitle,
 				layout.NewSpacer(),
 				app.helpButton,
-				app.aboutButton,
-			),
-		),
-		widget.NewSeparator(),
-	)
+				app.aboutButton)),
+		widget.NewSeparator())
 
-	// 应用列表区域 - 使用卡片容器增加视觉层次感
-	listLabel := widget.NewLabelWithStyle("应用程序列表", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	// 2. 创建应用列表区域
+	listLabel := widget.NewLabelWithStyle(
+		app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "AppList"}),
+		fyne.TextAlignLeading,
+		fyne.TextStyle{Bold: true})
 
-	// 创建加载指示器和提示文本的组合，增加动态效果
-	loadingLabel := widget.NewLabelWithStyle("正在加载应用列表，请稍候...",
-		fyne.TextAlignCenter, fyne.TextStyle{Italic: true})
-	loadingIcon := widget.NewIcon(theme.ViewRefreshIcon())
+	loadingLabel := widget.NewLabelWithStyle(
+		app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "LoadingAppList"}),
+		fyne.TextAlignCenter,
+		fyne.TextStyle{Italic: true})
 
-	// 包装在一个卡片容器中，增强视觉层次感
-	loadingContainer := container.NewVBox(
-		container.NewHBox(layout.NewSpacer(), loadingIcon, layout.NewSpacer()),
-		container.NewHBox(layout.NewSpacer(), loadingLabel, layout.NewSpacer()),
-	)
+	appListContainer := container.NewBorder(
+		listLabel, nil, nil, nil,
+		container.NewPadded(
+			container.NewVBox(
+				container.NewHBox(
+					layout.NewSpacer(),
+					widget.NewIcon(theme.ViewRefreshIcon()),
+					layout.NewSpacer()),
+				container.NewHBox(
+					layout.NewSpacer(),
+					loadingLabel,
+					layout.NewSpacer()))))
 
-	// 使用Padding增加美观度，添加边框和阴影效果
-	appListContainer := container.NewBorder(listLabel, nil, nil, nil,
-		container.NewPadded(loadingContainer))
+	// 3. 创建操作按钮区域
+	actionLabel := widget.NewLabelWithStyle(
+		app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Actions"}),
+		fyne.TextAlignLeading,
+		fyne.TextStyle{Bold: true})
 
-	// 操作区域
-	app.progressBar = widget.NewProgressBar()
-	app.progressBar.Hide()
+	actionButtons := container.NewGridWithColumns(3,
+		app.discoverButton,
+		app.cleanButton,
+		app.configButton)
 
-	// 状态标签不再直接显示在界面上，但仍然保留用于日志记录
-	app.statusLabel = widget.NewLabel("就绪")
-	app.statusLabel.Hide()
-
-	// 操作按钮区域 - 使用卡片布局提高视觉层次感
-	// 初始化按钮，使用更明亮的图标和悬停效果
-	app.discoverButton = ModernButton("扫描应用", theme.SearchIcon(), app.onDiscover)
-	app.cleanButton = ModernButton("重置选中", theme.DeleteIcon(), app.onClean)
-	app.configButton = ModernButton("设置", theme.SettingsIcon(), app.onConfig)
-
-	// 设置按钮重要性级别
-	app.discoverButton.Importance = widget.HighImportance
-	app.cleanButton.Importance = widget.DangerImportance
-	app.configButton.Importance = widget.MediumImportance
-
-	// 禁用重置按钮，直到选中应用
-	app.cleanButton.Disable()
-
-	// 创建卡片式操作按钮区域
 	actionButtonsCard := container.NewVBox(
-		widget.NewLabelWithStyle("操作", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		container.NewGridWithColumns(3,
-			app.discoverButton,
-			app.cleanButton,
-			app.configButton,
-		),
-	)
+		actionLabel,
+		actionButtons)
 
-	// 初始化全选复选框
-	app.selectAllCheck = widget.NewCheck("全选", func(checked bool) {
-		app.log("INFO", fmt.Sprintf("全选状态变更: %v", checked))
+	// 4. 创建状态区域
+	progressLabel := widget.NewLabelWithStyle(
+		app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Progress"}),
+		fyne.TextAlignLeading,
+		fyne.TextStyle{Bold: true})
 
-		// 重置选中状态
-		app.selectedApps = make(map[int]bool)
+	progressContainer := container.NewPadded(app.progressBar)
 
-		// 更新每个应用的选中状态
-		for i, appInfo := range app.appData {
-			if appInfo.Found && !appInfo.Running {
-				app.selectedApps[i] = checked
-			}
-		}
+	statusCard := container.NewBorder(
+		progressLabel,
+		nil, nil, nil,
+		progressContainer)
 
-		// 重新创建应用列表
-		app.refreshAppList()
-
-		// 更新重置按钮状态
-		app.updateCleanButton()
-	})
-
-	// 状态区域 - 只保留进度条
-	statusCard := container.NewVBox(
-		widget.NewLabelWithStyle("进度", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-		app.progressBar,
-	)
-
-	// 功能区组合 - 添加卡片式背景
+	// 5. 组合控制区域
 	controlsContainer := container.NewVBox(
-		actionButtonsCard, // 移除额外的内边距
+		actionButtonsCard,
 		widget.NewSeparator(),
-		statusCard, // 移除额外的内边距
-	)
+		statusCard)
 
-	// 日志区域 - 减小高度使其更紧凑
-	app.logText = widget.NewMultiLineEntry()
-	app.logText.Disable()
-	app.logText.SetPlaceHolder("操作日志将显示在此处...")
-	app.logText.TextStyle = fyne.TextStyle{Monospace: true}
+	controlsContainer.Resize(fyne.NewSize(0, 150))
 
-	// 创建折叠按钮
-	var collapseLogButton *widget.Button
-	var clearLogButton *widget.Button
-	var logContentContainer *fyne.Container
+	// 6. 创建日志区域
+	logLabel := widget.NewLabelWithStyle(
+		app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Log"}),
+		fyne.TextAlignLeading,
+		fyne.TextStyle{Bold: true})
 
-	// 先初始化按钮
-	collapseLogButton = ModernButton("", theme.MoveDownIcon(), nil)
-	clearLogButton = ModernButton("清除日志", theme.ContentClearIcon(), func() {
-		app.logText.SetText("")
-	})
+	clearLogButton := ModernButton(
+		app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ClearLog"}),
+		theme.ContentClearIcon(),
+		func() {
+			app.logText.SetText("")
+			// 清除日志后滚动到顶部
+			if app.logScrollContainer != nil {
+				app.logScrollContainer.ScrollToTop()
+			}
+		})
 
-	// 创建日志容器
-	logScrollContainer := container.NewScroll(app.logText)
-	// 增加日志显示区域的高度
-	logScrollContainer.SetMinSize(fyne.NewSize(0, 150))
+	collapseLogButton := ModernButton("", theme.MoveDownIcon(), nil)
 
-	// 创建一个变量引用日志内容容器
-	logContentContainer = container.NewVBox(
+	app.logScrollContainer = container.NewScroll(app.logText)
+
+	app.logScrollContainer.SetMinSize(fyne.NewSize(0, 100))
+
+	logContentContainer := container.NewBorder(
 		widget.NewSeparator(),
-		logScrollContainer,
-	)
+		nil, nil, nil,
+		app.logScrollContainer)
 
-	// 创建日志折叠状态变量
 	isLogCollapsed := false
-
-	// 设置折叠按钮的回调函数
 	collapseLogButton.OnTapped = func() {
 		isLogCollapsed = !isLogCollapsed
 
 		if isLogCollapsed {
-			// 折叠状态
 			collapseLogButton.SetIcon(theme.MoveUpIcon())
 			logContentContainer.Hide()
 		} else {
-			// 展开状态
 			collapseLogButton.SetIcon(theme.MoveDownIcon())
 			logContentContainer.Show()
 		}
 	}
 
-	// 创建日志标题区域
 	logTitle := container.NewHBox(
-		widget.NewLabelWithStyle("操作日志", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		logLabel,
 		layout.NewSpacer(),
 		clearLogButton,
-		collapseLogButton,
-	)
+		collapseLogButton)
 
-	// 完整日志容器
 	logContainer := container.NewBorder(
-		logTitle,
-		nil, nil, nil,
-		logContentContainer,
-	)
+		logTitle, nil, nil, nil,
+		logContentContainer)
 
-	// 创建边框和阴影效果的函数
+	// 7. 创建边框效果
 	createBorderedContainer := func(content fyne.CanvasObject) *fyne.Container {
 		border := canvas.NewRectangle(color.NRGBA{R: 50, G: 55, B: 65, A: 100})
 		border.StrokeWidth = 1
@@ -351,67 +395,69 @@ func (app *App) createUI() {
 		return container.New(
 			layout.NewMaxLayout(),
 			border,
-			content,
-		)
+			content)
 	}
 
-	// 创建控制区域的边框容器
 	borderedControlsContainer := createBorderedContainer(controlsContainer)
-
-	// 创建日志区域的边框容器
 	borderedLogContainer := createBorderedContainer(logContainer)
 
-	// 将应用列表和控制区域放在一起
-	app.mainAreaContainer = container.NewBorder(
-		nil,
-		borderedControlsContainer, // 使用带边框的控制区域
-		nil, nil,
-		appListContainer,
-	)
+	controlsAndLogArea := container.NewVSplit(
+		borderedControlsContainer, // 上部：控制区域
+		borderedLogContainer)      // 下部：日志区域
 
-	// 主容器 - 将日志区域放在下方，调整边距使更紧凑
+	// 设置控制区域和日志区域的分割比例
+	controlsAndLogArea.Offset = 0.25 // 控制区域占25%，日志区域占75%
+
+	// 第二层分割：应用列表 vs (控制区域+日志区域)
+	mainArea := container.NewVSplit(
+		appListContainer,   // 上部：应用列表（可调节）
+		controlsAndLogArea) // 下部：控制区域+日志区域（可调节）
+
+	mainArea.Offset = 0.3 // 应用列表占30%，其他区域占70%
+
+	app.mainAreaContainer = mainArea
+	app.logMessage("INFO", "LogMainAreaCreated", map[string]interface{}{
+		"AppListRatio":  mainArea.Offset,
+		"ControlsRatio": controlsAndLogArea.Offset,
+	})
+
+	// 9. 组合所有区域 - 现在所有区域都在可调节的分割容器中
 	mainContent := container.NewBorder(
 		header,
-		borderedLogContainer, // 使用带边框的日志区域
+		nil,
 		nil, nil,
-		app.mainAreaContainer,
-	)
+		mainArea)
 
-	// 设置更小的内边距，提高紧凑性
-	paddedContent := container.NewPadded(mainContent)
-
-	app.mainWindow.SetContent(paddedContent)
-
-	// 调整窗口大小
-	app.mainWindow.Resize(fyne.NewSize(860, 600)) // 减小高度使界面更紧凑
-}
-
-// setupEventHandlers sets up event handlers for the UI
-func (app *App) setupEventHandlers() {
-	// 事件处理器已经在createUI方法中设置
-	// 如果有其他事件处理器，可以在这里添加
+	return container.NewPadded(mainContent)
 }
 
 // performDiscovery performs application discovery
 func (app *App) performDiscovery() {
-	app.log("INFO", "开始发现应用程序...")
-	app.statusLabel.SetText("正在发现应用程序...")
+	app.logMessage("INFO", "LogDiscoveryStarted", nil)
+	app.statusLabel.SetText(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "StatusDiscoveringApps"}))
 
 	// 获取和显示所有应用数据路径
 	appDataPaths := app.engine.GetAppDataPaths()
 
 	// 打印原始路径数据
-	app.log("INFO", fmt.Sprintf("原始应用数据路径: %v", appDataPaths))
+	app.logMessage("INFO", "LogOriginalAppPaths", map[string]interface{}{
+		"Paths": fmt.Sprintf("%v", appDataPaths),
+	})
 
 	// 重置应用数据列表
 	app.appData = make([]AppInfo, 0)
 
 	// 调试日志
-	app.log("INFO", fmt.Sprintf("发现应用数量: %d", len(appDataPaths)))
+	app.logMessage("INFO", "LogDiscoveredAppCount", map[string]interface{}{
+		"Count": len(appDataPaths),
+	})
 
 	// 详细输出所有应用
 	for name, path := range appDataPaths {
-		app.log("INFO", fmt.Sprintf("发现应用: %s, 路径: %s", name, path))
+		app.logMessage("INFO", "LogDiscoveredApp", map[string]interface{}{
+			"Name": name,
+			"Path": path,
+		})
 	}
 
 	// 按顺序排列应用，确保顺序一致
@@ -427,14 +473,16 @@ func (app *App) performDiscovery() {
 		appPath := appDataPaths[appName]
 		appConfig := app.config.Applications[appName]
 
-		app.log("INFO", fmt.Sprintf("处理应用: %s, 显示名称: %s", appName, appConfig.DisplayName))
+		app.logMessage("INFO", "LogProcessingApp", map[string]interface{}{
+			"Name":        appName,
+			"DisplayName": appConfig.DisplayName,
+		})
 
 		appInfo := AppInfo{
 			Name:        appName,
 			DisplayName: appConfig.DisplayName,
 			Path:        appPath,
 			Found:       appPath != "",
-			Selected:    false, // 确保初始未选中
 		}
 
 		if appInfo.Found {
@@ -445,20 +493,37 @@ func (app *App) performDiscovery() {
 			size := app.engine.GetDirectorySize(appPath)
 			appInfo.Size = app.engine.FormatSize(size)
 
-			app.log("INFO", fmt.Sprintf("发现应用详情: 显示名称: %s, 路径: %s, 大小: %s, 运行中: %v", appInfo.DisplayName, appPath, appInfo.Size, appInfo.Running))
+			app.logMessage("INFO", "LogFoundAppDetails", map[string]interface{}{
+				"DisplayName": appInfo.DisplayName,
+				"Path":        appPath,
+				"Size":        appInfo.Size,
+				"Running":     appInfo.Running,
+			})
 		} else {
 			appInfo.Size = "未知"
-			app.log("INFO", fmt.Sprintf("未找到应用: %s", appInfo.DisplayName))
+			app.logMessage("INFO", "LogAppNotFound", map[string]interface{}{
+				"DisplayName": appInfo.DisplayName,
+			})
 		}
 
 		app.appData = append(app.appData, appInfo)
-		app.log("INFO", fmt.Sprintf("添加应用到列表: 显示名称: %s, 索引: %d", appInfo.DisplayName, len(app.appData)-1))
+		app.logMessage("INFO", "LogAppAddedToList", map[string]interface{}{
+			"DisplayName": appInfo.DisplayName,
+			"Index":       len(app.appData) - 1,
+		})
 	}
 
 	// 调试日志
-	app.log("INFO", fmt.Sprintf("列表中应用总数: %d", len(app.appData)))
+	app.logMessage("INFO", "LogTotalAppCount", map[string]interface{}{
+		"Count": len(app.appData),
+	})
+
 	for i, appInfo := range app.appData {
-		app.log("INFO", fmt.Sprintf("最终应用列表项: 索引: %d, 显示名称: %s, 路径: %s", i, appInfo.DisplayName, appInfo.Path))
+		app.logMessage("INFO", "LogFinalAppListItem", map[string]interface{}{
+			"Index":       i,
+			"DisplayName": appInfo.DisplayName,
+			"Path":        appInfo.Path,
+		})
 	}
 
 	// 清空选中状态
@@ -475,8 +540,8 @@ func (app *App) performDiscovery() {
 	// 确保在主UI线程上执行刷新
 	fyne.CurrentApp().Driver().CanvasForObject(app.mainWindow.Content()).Refresh(app.mainWindow.Content())
 
-	app.statusLabel.SetText("发现完成")
-	app.log("INFO", "应用程序发现已完成")
+	app.statusLabel.SetText(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "StatusDiscoveryComplete"}))
+	app.logMessage("INFO", "LogDiscoveryComplete", nil)
 
 	// 计算有效的应用数量（已找到且未运行的应用）
 	validAppCount := 0
@@ -487,7 +552,10 @@ func (app *App) performDiscovery() {
 	}
 
 	// 在日志中额外添加摘要信息
-	app.log("INFO", fmt.Sprintf("共发现 %d 个应用，其中 %d 个可重置", len(app.appData), validAppCount))
+	app.logMessage("INFO", "LogDiscoverySummary", map[string]interface{}{
+		"Total": len(app.appData),
+		"Valid": validAppCount,
+	})
 
 	// 更新重置按钮状态
 	app.updateCleanButton()
@@ -495,26 +563,29 @@ func (app *App) performDiscovery() {
 
 // onDiscover handles the discover button click
 func (app *App) onDiscover() {
-	// 禁用扫描按钮，避免重复点击
+	app.logMessage("INFO", "LogUserStartedDiscovery", nil)
+
+	// 禁用扫描按钮，防止重复点击
 	app.discoverButton.Disable()
-	app.discoverButton.SetText("正在扫描...")
+	app.discoverButton.SetText(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Scanning"}))
 
-	// 显示加载提示
-	app.log("INFO", "用户启动了发现流程")
+	// 显示加载状态
+	app.statusLabel.Show()
+	app.statusLabel.SetText(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ScanningApplications"}))
+	app.progressBar.Show()
+	app.progressBar.SetValue(0.5) // 中间值，表示处理中
 
-	// 在后台执行扫描，避免UI卡顿
+	// 在后台线程中执行扫描
 	go func() {
-		// 执行发现过程
+		// 执行发现流程
 		app.performDiscovery()
 
-		// 操作完成后，恢复按钮状态
-		app.discoverButton.SetText("扫描应用")
+		// 恢复UI状态
 		app.discoverButton.Enable()
+		app.discoverButton.SetText(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "DiscoverApps"}))
 
-		// 确保UI在主线程上刷新
-		if canvas := fyne.CurrentApp().Driver().CanvasForObject(app.mainWindow.Content()); canvas != nil {
-			canvas.Refresh(app.mainWindow.Content())
-		}
+		app.progressBar.Hide()
+		app.statusLabel.SetText(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Ready"}))
 	}()
 }
 
@@ -524,10 +595,16 @@ func (app *App) updateCleanButton() {
 	hasSelected := false
 
 	// 调试日志 - 输出所有应用信息
-	app.log("INFO", "更新重置按钮状态")
+	app.logMessage("INFO", "LogUpdateResetButtonStatus", nil)
 	for i, appInfo := range app.appData {
 		isSelected := app.selectedApps[i]
-		app.log("INFO", fmt.Sprintf("应用状态用于按钮更新: 索引: %d, 显示名称: %s, 已找到: %v, 运行中: %v, 选中: %v", i, appInfo.DisplayName, appInfo.Found, appInfo.Running, isSelected))
+		app.logMessage("INFO", "LogAppStatusForButtonUpdate", map[string]interface{}{
+			"Index":    i,
+			"Name":     appInfo.DisplayName,
+			"Found":    appInfo.Found,
+			"Running":  appInfo.Running,
+			"Selected": isSelected,
+		})
 	}
 
 	for _, selected := range app.selectedApps {
@@ -547,12 +624,12 @@ func (app *App) updateCleanButton() {
 				count++
 			}
 		}
-		app.cleanButton.SetText(fmt.Sprintf("重置选中 (%d)", count))
-		app.log("INFO", fmt.Sprintf("重置按钮启用, 选中数量: %d", count))
+		app.cleanButton.SetText(fmt.Sprintf("%s (%d)", app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ResetSelected"}), count))
+		app.logMessage("INFO", "LogResetButtonEnabled", map[string]interface{}{"Count": count})
 	} else {
 		app.cleanButton.Disable()
-		app.cleanButton.SetText("重置选中")
-		app.log("INFO", "重置按钮禁用")
+		app.cleanButton.SetText(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ResetSelected"}))
+		app.logMessage("INFO", "LogResetButtonDisabled", nil)
 	}
 }
 
@@ -571,14 +648,14 @@ func (app *App) onClean() {
 
 	// 如果没有选中应用，直接返回
 	if len(selectedApps) == 0 {
-		dialog.ShowInformation("提示", "请先选择要重置的应用", app.mainWindow)
+		dialog.ShowInformation(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "InfoTitle"}), app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "SelectAppToReset"}), app.mainWindow)
 		return
 	}
 
 	// 检查是否有应用正在运行
 	for _, appInfo := range selectedApps {
 		if appInfo.Running {
-			dialog.ShowError(fmt.Errorf("请先关闭 %s 再重置", appInfo.DisplayName), app.mainWindow)
+			dialog.ShowError(fmt.Errorf(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "CloseAppToReset", TemplateData: map[string]interface{}{"AppName": appInfo.DisplayName}})), app.mainWindow)
 			return
 		}
 	}
@@ -586,7 +663,7 @@ func (app *App) onClean() {
 	// 创建确认内容
 	confirmContent := container.NewVBox(
 		widget.NewLabelWithStyle(
-			fmt.Sprintf("您即将重置 %d 个应用的数据", len(selectedApps)),
+			fmt.Sprintf(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ConfirmResetCount"}), len(selectedApps)),
 			fyne.TextAlignCenter,
 			fyne.TextStyle{Bold: true},
 		),
@@ -600,23 +677,23 @@ func (app *App) onClean() {
 
 	// 添加操作说明
 	confirmContent.Add(widget.NewSeparator())
-	confirmContent.Add(widget.NewLabel("此操作将会："))
-	confirmContent.Add(widget.NewLabel("• 重置设备ID与唯一标识"))
-	confirmContent.Add(widget.NewLabel("• 清除账户登录记录与凭据"))
-	confirmContent.Add(widget.NewLabel("• 删除缓存数据与历史记录"))
-	confirmContent.Add(widget.NewLabel("• 创建所有修改文件的备份"))
+	confirmContent.Add(widget.NewLabel(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ConfirmResetDescription"})))
+	confirmContent.Add(widget.NewLabel(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ConfirmResetDeviceID"})))
+	confirmContent.Add(widget.NewLabel(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ConfirmResetAccountRecords"})))
+	confirmContent.Add(widget.NewLabel(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ConfirmResetCacheData"})))
+	confirmContent.Add(widget.NewLabel(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ConfirmResetBackup"})))
 	confirmContent.Add(widget.NewSeparator())
 	confirmContent.Add(widget.NewLabelWithStyle(
-		"备份将保存在您的主文件夹中",
+		app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ConfirmBackupLocation"}),
 		fyne.TextAlignCenter,
 		fyne.TextStyle{Italic: true},
 	))
 
 	// 显示确认对话框
 	customConfirm := dialog.NewCustomConfirm(
-		"确认重置操作",
-		"确认执行",
-		"取消",
+		app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ConfirmResetTitle"}),
+		app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ConfirmExecute"}),
+		app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Cancel"}),
 		confirmContent,
 		func(confirm bool) {
 			if confirm {
@@ -634,13 +711,21 @@ func (app *App) onClean() {
 
 // performCleanup performs the actual cleanup operation
 func (app *App) performCleanup(appInfo AppInfo) {
-	app.log("INFO", fmt.Sprintf("开始重置: %s", appInfo.DisplayName))
-	app.statusLabel.SetText(fmt.Sprintf("正在重置: %s", appInfo.DisplayName))
+	app.logMessage("INFO", "LogStartResetting", map[string]interface{}{
+		"AppName": appInfo.DisplayName,
+	})
+
+	app.statusLabel.SetText(app.localizer.MustLocalize(&i18n.LocalizeConfig{
+		MessageID: "StatusResetting",
+		TemplateData: map[string]interface{}{
+			"AppName": appInfo.DisplayName,
+		},
+	}))
 	app.progressBar.Show()
 	app.progressBar.SetValue(0)
 
 	// Update engine settings
-	app.engine = cleaner.NewEngine(app.config, false, false)
+	app.engine = cleaner.NewEngine(app.config, false, false, app.localizer)
 
 	// Start progress monitoring
 	go app.monitorProgress()
@@ -649,9 +734,15 @@ func (app *App) performCleanup(appInfo AppInfo) {
 	go func() {
 		err := app.engine.CleanApplication(context.Background(), appInfo.Name)
 		if err != nil {
-			app.log("ERROR", fmt.Sprintf("重置失败: %s, 错误: %v", appInfo.DisplayName, err))
+			app.logMessage("ERROR", "ResetFailed", map[string]interface{}{
+				"AppName": appInfo.DisplayName,
+				"Error":   err,
+			})
 		} else {
-			app.log("INFO", fmt.Sprintf("重置完成: %s", appInfo.DisplayName))
+			app.logMessage("INFO", "ResetComplete", map[string]interface{}{
+				"AppName": appInfo.DisplayName,
+			})
+			// 项目主页和免责声明现在在进度达到100%后通过monitorProgress显示
 		}
 	}()
 }
@@ -659,10 +750,38 @@ func (app *App) performCleanup(appInfo AppInfo) {
 // monitorProgress monitors cleanup progress
 func (app *App) monitorProgress() {
 	progressChan := app.engine.GetProgressChannel()
+	var completedApps []string // 记录已完成的应用
+
 	for update := range progressChan {
 		app.progressBar.SetValue(update.Progress / 100.0)
+
+		// 状态消息可能已经是国际化的，直接使用
 		app.statusLabel.SetText(update.Message)
-		app.log("INFO", fmt.Sprintf("阶段: %s, 进度: %s, 百分比: %.2f%%", update.Phase, update.Message, update.Progress))
+
+		app.logMessage("INFO", "LogResetProgress", map[string]interface{}{
+			"Phase":   update.Phase,
+			"Message": update.Message,
+			"Percent": int(update.Progress), // 转换为整数，去掉小数点
+		})
+
+		// 检查是否达到100%进度
+		if update.Progress >= 100.0 && update.AppName != "" {
+			// 检查是否已经处理过这个应用
+			alreadyProcessed := false
+			for _, completedApp := range completedApps {
+				if completedApp == update.AppName {
+					alreadyProcessed = true
+					break
+				}
+			}
+
+			// 如果没有处理过，则显示项目主页和免责声明
+			if !alreadyProcessed {
+				completedApps = append(completedApps, update.AppName)
+				// 在单独的goroutine中执行，避免阻塞进度监控
+				go app.showProjectInfoAfterCompletion()
+			}
+		}
 	}
 }
 
@@ -683,12 +802,20 @@ func (app *App) onConfig() {
 	confirmCheck.SetChecked(app.config.SafetyOptions.RequireConfirmation)
 
 	// 添加到表单
-	configForm.Append("启用备份", backupEnabledCheck)
-	configForm.Append("保留天数", backupKeepDays)
-	configForm.Append("需要确认", confirmCheck)
+	configForm.Append(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "EnableBackup"}), backupEnabledCheck)
+	configForm.Append(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "RetentionDays"}), backupKeepDays)
+	configForm.Append(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "RequireConfirmation"}), confirmCheck)
+
+	// Language selection
+	langSelector := widget.NewSelect([]string{"en", "zh"}, func(s string) {
+		app.localizer = appi18n.NewLocalizer(app.bundle, s)
+		app.recreateUI()
+	})
+	langSelector.Selected = app.localizer.Locale
+	configForm.Append(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Language"}), langSelector)
 
 	// 创建对话框
-	dialog.ShowCustomConfirm("应用设置", "保存", "取消", configForm, func(save bool) {
+	dialog.ShowCustomConfirm(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "AppSettings"}), app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Save"}), app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Cancel"}), configForm, func(save bool) {
 		if save {
 			// 更新配置
 			app.config.BackupOptions.Enabled = backupEnabledCheck.Checked
@@ -700,10 +827,12 @@ func (app *App) onConfig() {
 
 			err = config.SaveConfig(app.config, "")
 			if err != nil {
-				dialog.ShowError(fmt.Errorf("保存配置失败: %v", err), app.mainWindow)
-				app.log("ERROR", fmt.Sprintf("保存配置失败: %v", err))
+				dialog.ShowError(fmt.Errorf(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "SaveConfigFailed"}), err), app.mainWindow)
+				app.logMessage("ERROR", "SaveConfigFailedLog", map[string]interface{}{
+					"Error": err,
+				})
 			} else {
-				app.log("INFO", "配置已保存")
+				app.logMessage("INFO", "ConfigSaved", nil)
 			}
 		}
 	}, app.mainWindow)
@@ -712,57 +841,82 @@ func (app *App) onConfig() {
 // onHelp handles the help button click
 func (app *App) onHelp() {
 	helpContent := container.NewVBox(
-		widget.NewLabelWithStyle("使用说明", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
-		widget.NewLabel("1. 点击【扫描应用】按钮检测已安装的应用"),
-		widget.NewLabel("2. 从列表中选择要重置的应用"),
-		widget.NewLabel("3. 确保应用已关闭（运行中的应用不能重置）"),
-		widget.NewLabel("4. 点击【重置选中】按钮开始重置流程"),
+		widget.NewLabelWithStyle(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "HelpTitle"}), fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
+		widget.NewLabel(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "HelpStep1"})),
+		widget.NewLabel(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "HelpStep2"})),
+		widget.NewLabel(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "HelpStep3"})),
+		widget.NewLabel(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "HelpStep4"})),
 		widget.NewSeparator(),
-		widget.NewLabelWithStyle("重置内容", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
-		widget.NewLabel("• 设备ID和唯一标识"),
-		widget.NewLabel("• 账户登录记录和凭据"),
-		widget.NewLabel("• 缓存数据和历史记录"),
-		widget.NewLabel("注意：操作前会自动创建备份"),
+		widget.NewLabelWithStyle(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ResetContent"}), fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
+		widget.NewLabel(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ResetDeviceID"})),
+		widget.NewLabel(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ResetAccountRecords"})),
+		widget.NewLabel(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ResetCacheData"})),
+		widget.NewLabel(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ResetNote"})),
 	)
 
-	dialog.ShowCustom("帮助信息", "关闭", helpContent, app.mainWindow)
+	dialog.ShowCustom(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "HelpInfo"}), app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Close"}), helpContent, app.mainWindow)
 }
 
 // onAbout handles the about button click
 func (app *App) onAbout() {
 	// Create project homepage hyperlink
 	projectURL, _ := url.Parse("https://github.com/whispin/Cursor_Windsurf_Reset")
-	projectLink := widget.NewHyperlink("项目主页", projectURL)
+	projectLink := widget.NewHyperlink(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ProjectHomepage"}), projectURL)
 	projectLink.Alignment = fyne.TextAlignCenter
 
 	aboutContent := container.NewVBox(
-		widget.NewLabelWithStyle("Cursor & Windsurf 重置工具", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
-		widget.NewLabel("版本: 1.0.0"),
-		widget.NewLabel("基于Go语言和Fyne框架开发"),
+		widget.NewLabelWithStyle(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "AboutTitle"}), fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
+		widget.NewLabel(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Version"})),
+		widget.NewLabel(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "DevelopedBy"})),
 		projectLink,
 		widget.NewSeparator(),
-		widget.NewLabel("此工具用于重置Cursor和Windsurf应用的数据"),
-		widget.NewLabel("包括设备ID、账户记录和缓存数据"),
+		widget.NewLabel(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "AboutDescription"})),
+		widget.NewLabel(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "AboutIncludes"})),
 		widget.NewSeparator(),
-		widget.NewLabelWithStyle("注意事项", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
-		widget.NewLabel("请在使用前备份重要数据"),
-		widget.NewLabel("使用须知：本软件及其相关文档仅用于教育、学习与评估目的"),
+		widget.NewLabelWithStyle(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "AboutNote"}), fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
+		widget.NewLabel(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "AboutBackupNote"})),
 		widget.NewSeparator(),
-		widget.NewLabel("不可用于任何商业/非法用途，开发者不承担一切法律责任。"),
+		widget.NewLabelWithStyle(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "AboutDisclaimer"}), fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
+		widget.NewLabel(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Disclaimer3"})),
 	)
 
-	dialog.ShowCustom("关于", "关闭", aboutContent, app.mainWindow)
+	dialog.ShowCustom(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "AboutTitle"}), app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "Close"}), aboutContent, app.mainWindow)
 }
 
-// 修改App结构体log方法，支持日志级别
+// log logs a message with a specific level
 func (app *App) log(level, message string) {
-	level = strings.ToUpper(level)
-	app.guiLogger.WithLevel(parseLevel(level)).Msg(message)
+	logLevel := parseLevel(level)
+	app.guiLogger.WithLevel(logLevel).Msg(message)
 }
 
-// parseLevel辅助函数
+// logMessage 使用国际化键和模板数据记录消息
+func (app *App) logMessage(level string, messageID string, templateData map[string]interface{}) {
+	logLevel := parseLevel(level)
+
+	// 使用国际化配置获取本地化消息
+	message := app.localizer.MustLocalize(&i18n.LocalizeConfig{
+		MessageID:    messageID,
+		TemplateData: templateData,
+	})
+
+	// 记录本地化后的消息
+	app.guiLogger.WithLevel(logLevel).Msg(message)
+}
+
+func (app *App) showProjectInfoAfterCompletion() {
+	time.Sleep(500 * time.Millisecond)
+
+	app.logMessage("INFO", "LogMessage", map[string]interface{}{
+		"Message": config.GetConfOne(),
+	})
+	app.logMessage("INFO", "LogMessage", map[string]interface{}{
+		"Message": config.GetConfTwo(),
+	})
+}
+
+// parseLevel parses a string level to a zerolog.Level
 func parseLevel(level string) zerolog.Level {
-	switch level {
+	switch strings.ToUpper(level) {
 	case "DEBUG":
 		return zerolog.DebugLevel
 	case "INFO":
@@ -771,8 +925,6 @@ func parseLevel(level string) zerolog.Level {
 		return zerolog.WarnLevel
 	case "ERROR":
 		return zerolog.ErrorLevel
-	case "FATAL":
-		return zerolog.FatalLevel
 	default:
 		return zerolog.InfoLevel
 	}
@@ -783,264 +935,412 @@ func (app *App) Run() {
 	app.mainWindow.ShowAndRun()
 }
 
-// GetMainWindow returns the main window
+// GetMainWindow returns the main window of the application
 func (app *App) GetMainWindow() fyne.Window {
 	return app.mainWindow
 }
 
+// createAppListArea creates the container for the application list
 func (app *App) createAppListArea() *fyne.Container {
-	// 垂直布局容器，将包含所有应用卡片
-	appsContainer := container.NewVBox()
-
-	// 确保appData已经被初始化
-	if len(app.appData) == 0 {
-		app.log("INFO", "appData为空，无法创建应用列表")
-
-		// 尝试从配置中手动创建应用列表
-		if app.config != nil && len(app.config.Applications) > 0 {
-			app.log("INFO", fmt.Sprintf("尝试从配置创建应用列表，应用数: %d", len(app.config.Applications)))
-
-			// 使用排序的应用名称
-			appNames := make([]string, 0, len(app.config.Applications))
-			for appName := range app.config.Applications {
-				appNames = append(appNames, appName)
-			}
-			// 排序应用名称
-			sort.Strings(appNames)
-
-			// 重置应用列表
-			app.appData = make([]AppInfo, 0)
-
-			// 按排序后的名称添加应用
-			for _, appName := range appNames {
-				appConfig := app.config.Applications[appName]
-				app.log("INFO", fmt.Sprintf("从配置处理应用: %s, 显示名称: %s", appName, appConfig.DisplayName))
-
-				// 创建应用信息对象
-				appInfo := AppInfo{
-					Name:        appName,
-					DisplayName: appConfig.DisplayName,
-					Path:        "未知",
-					Size:        "未知",
-					Found:       false,
-					Selected:    false,
-				}
-
-				app.appData = append(app.appData, appInfo)
-			}
-		}
-	}
-
-	// 确保appData不为空
-	if len(app.appData) == 0 {
-		app.log("INFO", "无法创建应用列表，appData仍为空")
-		return container.NewVBox(widget.NewLabel("找不到应用"))
-	}
-
-	// 调试日志
-	app.log("INFO", fmt.Sprintf("创建应用列表区域, 应用数: %d", len(app.appData)))
-	for i, appInfo := range app.appData {
-		app.log("INFO", fmt.Sprintf("应用列表项: 索引: %d, 显示名称: %s", i, appInfo.DisplayName))
-	}
-
-	// 计算已找到和可重置的应用数量
-	foundCount := 0
-	cleanableCount := 0
+	// 动态计算有效应用数量
+	validAppCount := 0
 	for _, appInfo := range app.appData {
 		if appInfo.Found {
-			foundCount++
-			if !appInfo.Running {
-				cleanableCount++
-			}
+			validAppCount++
 		}
 	}
+	statusText := fmt.Sprintf(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "AppFound"}), validAppCount)
+	if validAppCount == 0 {
+		statusText = app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NoAppsFound"})
+	}
 
-	// 创建状态文字
-	statusText := fmt.Sprintf("已发现: %d  可重置: %d", foundCount, cleanableCount)
+	// 创建应用列表
+	list := widget.NewList(
+		func() int {
+			return len(app.appData)
+		},
+		func() fyne.CanvasObject {
+			// 创建模板项，使用垂直布局展示两行信息
+
+			// 第一行：选择框、应用名称和大小
+			nameLabel := widget.NewLabel("AppName")
+			nameLabel.Alignment = fyne.TextAlignLeading
+			nameLabel.TextStyle = fyne.TextStyle{Bold: true}
+
+			sizeLabel := widget.NewLabel("Size")
+			sizeLabel.Alignment = fyne.TextAlignTrailing
+
+			statusIcon := widget.NewIcon(theme.ConfirmIcon())
+			selectCheck := widget.NewCheck("", nil)
+
+			// 将选择框移至左侧
+			topRow := container.NewHBox(
+				selectCheck, // 选择框位于最左侧
+				nameLabel,
+				layout.NewSpacer(),
+				sizeLabel,
+				statusIcon,
+			)
+
+			// 第二行：路径显示
+			pathLabel := widget.NewLabel("Path")
+			pathLabel.Alignment = fyne.TextAlignLeading
+			pathLabel.TextStyle = fyne.TextStyle{Italic: true, Monospace: true}
+
+			// 创建浅色文本的自定义文本，使文字变浅
+			pathText := canvas.NewText("Path", color.NRGBA{R: 140, G: 140, B: 150, A: 160}) // 更浅的灰色，更透明
+			pathText.TextStyle = fyne.TextStyle{Italic: true, Monospace: true}
+			pathText.TextSize = 11 // 更小的字体大小
+
+			// 创建半透明的文件夹图标
+			pathIcon := widget.NewIcon(theme.FolderIcon())
+			pathIcon.Resource = theme.FolderOpenIcon() // 使用打开的文件夹图标
+
+			// 组合路径图标和标签为一行
+			pathRow := container.NewHBox(
+				pathIcon,
+				container.NewPadded(pathText),
+			)
+
+			// 组合两行为一个垂直布局
+			return container.NewVBox(
+				topRow,
+				pathRow,
+			)
+		},
+		func(id widget.ListItemID, item fyne.CanvasObject) {
+			if id >= len(app.appData) {
+				return // 安全检查
+			}
+
+			appInfo := app.appData[id]
+
+			// 转换为VBox容器
+			vbox, ok := item.(*fyne.Container)
+			if !ok {
+				app.logMessage("ERROR", "LogItemTypeError", nil)
+				return
+			}
+
+			// 确保VBox有足够的子元素
+			if len(vbox.Objects) < 2 {
+				app.logMessage("ERROR", "LogVBoxChildrenError", nil)
+				return
+			}
+
+			// 获取顶部行(HBox)
+			topRow, ok := vbox.Objects[0].(*fyne.Container)
+			if !ok {
+				app.logMessage("ERROR", "LogTopRowTypeError", nil)
+				return
+			}
+
+			// 获取路径标签
+			pathRow, ok := vbox.Objects[1].(*fyne.Container)
+			if !ok {
+				app.logMessage("ERROR", "LogPathRowTypeError", nil)
+				return
+			}
+
+			// 确保路径行有足够的子元素
+			if len(pathRow.Objects) < 2 {
+				app.logMessage("ERROR", "LogPathRowChildrenError", nil)
+				return
+			}
+
+			// 获取路径图标
+			pathIcon, ok := pathRow.Objects[0].(*widget.Icon)
+			if !ok {
+				app.logMessage("ERROR", "LogPathIconTypeError", nil)
+				return
+			}
+
+			// 如果应用未找到，使用灰色文件夹图标
+			if !appInfo.Found {
+				pathIcon.SetResource(theme.FolderIcon())
+			} else {
+				// 使用默认的打开文件夹图标，区分状态
+				if appInfo.Running {
+					// 运行中的应用使用不同图标
+					pathIcon.SetResource(theme.FolderOpenIcon())
+				} else {
+					// 正常可用的应用使用标准图标
+					pathIcon.SetResource(theme.FolderIcon())
+				}
+			}
+
+			// 获取路径行中的路径标签（位于内部Container中）
+			pathContainer, ok := pathRow.Objects[1].(*fyne.Container)
+			if !ok {
+				app.logMessage("ERROR", "LogPathContainerTypeError", nil)
+				return
+			}
+
+			// 获取实际的路径文本
+			if len(pathContainer.Objects) < 1 {
+				app.logMessage("ERROR", "LogPathContainerEmptyError", nil)
+				return
+			}
+
+			pathText, ok := pathContainer.Objects[0].(*canvas.Text)
+			if !ok {
+				app.logMessage("ERROR", "LogPathTextTypeError", nil)
+				return
+			}
+
+			// 确保顶部行有足够的子元素
+			if len(topRow.Objects) < 5 {
+				app.logMessage("ERROR", "LogTopRowChildrenError", nil)
+				return
+			}
+
+			// 获取UI元素 - 注意索引已变更
+			selectCheck, ok := topRow.Objects[0].(*widget.Check)
+			if !ok {
+				app.logMessage("ERROR", "LogCheckboxTypeError", nil)
+				return
+			}
+
+			nameLabel, ok := topRow.Objects[1].(*widget.Label)
+			if !ok {
+				app.logMessage("ERROR", "LogNameLabelTypeError", nil)
+				return
+			}
+
+			sizeLabel, ok := topRow.Objects[3].(*widget.Label)
+			if !ok {
+				app.logMessage("ERROR", "LogSizeLabelTypeError", nil)
+				return
+			}
+
+			statusIcon, ok := topRow.Objects[4].(*widget.Icon)
+			if !ok {
+				app.logMessage("ERROR", "LogStatusIconTypeError", nil)
+				return
+			}
+
+			// 设置应用名称
+			nameLabel.SetText(appInfo.DisplayName)
+
+			// 设置大小
+			sizeLabel.SetText(appInfo.Size)
+
+			// 设置路径 - 使用自定义文本对象
+			pathText.Text = appInfo.Path
+
+			// 根据应用状态添加"可清理"或"不可清理"状态信息
+			var statusMsg string
+			if !appInfo.Found {
+				// 未找到的应用
+				statusMsg = app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NotFoundStatus"})
+			} else if appInfo.Running {
+				// 运行中的应用，显示"不可清理"
+				statusMsg = app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "NotCleanableStatus"})
+			} else {
+				// 未运行的应用，显示"可清理"
+				statusMsg = app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "CleanableStatus"})
+			}
+			// 在路径后添加状态信息（括号包围）
+			pathText.Text = fmt.Sprintf("%s   (%s)", appInfo.Path, statusMsg)
+
+			// 设置路径图标的透明度
+			// Fyne没有直接设置图标透明度的API，这里可以通过颜色设置来实现
+			// 在此处只能使用替代方案，例如使用不同的图标
+
+			// 根据应用状态设置图标
+			if appInfo.Running {
+				statusIcon.SetResource(theme.CancelIcon())
+				selectCheck.Disable()
+			} else if !appInfo.Found {
+				statusIcon.SetResource(theme.QuestionIcon())
+				selectCheck.Disable()
+			} else {
+				statusIcon.SetResource(theme.ConfirmIcon())
+				selectCheck.Enable()
+			}
+
+			// 设置复选框状态和回调
+			selectCheck.SetChecked(app.selectedApps[id])
+			selectCheck.OnChanged = func(checked bool) {
+				app.selectedApps[id] = checked
+				app.updateCleanButton()
+			}
+		},
+	)
+
+	// 修改OnSelected回调，点击条目时勾选复选框
+	list.OnSelected = func(id widget.ListItemID) {
+		app.selectedIndex = id
+		app.logMessage("INFO", "LogSelectedItem", map[string]interface{}{"ID": id})
+
+		// 只处理可用的应用
+		if id < len(app.appData) {
+			appInfo := app.appData[id]
+			if appInfo.Found && !appInfo.Running {
+				// 切换选中状态
+				isSelected := app.selectedApps[id]
+				app.selectedApps[id] = !isSelected
+
+				// 只刷新被点击的这一项，而不是整个列表
+				list.RefreshItem(id)
+
+				// 更新重置按钮状态
+				app.updateCleanButton()
+
+				app.logMessage("INFO", "LogItemSelectionToggled", map[string]interface{}{
+					"Name":   appInfo.DisplayName,
+					"Status": !isSelected,
+				})
+			}
+		}
+
+		// 取消选中，避免高亮显示
+		list.UnselectAll()
+	}
+
+	listScroll := container.NewScroll(list)
 
 	// 列表标题
 	listHeader := container.NewHBox(
-		widget.NewLabelWithStyle("应用程序列表", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		widget.NewLabelWithStyle(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "AppList"}), fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 		layout.NewSpacer(),
 		widget.NewLabelWithStyle(statusText, fyne.TextAlignTrailing, fyne.TextStyle{Italic: true}),
 		app.selectAllCheck,
 	)
 
-	// 创建边框来分隔应用列表区域
-	listBorder := canvas.NewRectangle(color.NRGBA{R: 50, G: 55, B: 65, A: 100})
-	listBorder.StrokeWidth = 1
-	listBorder.StrokeColor = color.NRGBA{R: 60, G: 70, B: 80, A: 150}
-
-	// 遍历应用程序并创建卡片
-	for i, appInfo := range app.appData {
-		// 索引拷贝，避免闭包问题
-		index := i
-
-		// 复选框
-		checkBox := widget.NewCheck("", func(checked bool) {
-			app.selectedApps[index] = checked
-			app.updateCleanButton()
-			app.log("INFO", fmt.Sprintf("复选框状态变更: 索引: %d, 显示名称: %s, 选中: %v", index, appInfo.DisplayName, checked))
-		})
-
-		// 设置复选框的选中状态
-		checkBox.SetChecked(app.selectedApps[index])
-
-		// 如果应用未找到或正在运行，则禁用复选框
-		if !appInfo.Found || appInfo.Running {
-			checkBox.Disable()
-		}
-
-		// 状态图标 - 使用更明显的图标和颜色
-		var statusIcon *widget.Icon
-		var statusText string
-		var statusColor color.Color
-
-		if appInfo.Found {
-			if appInfo.Running {
-				statusIcon = widget.NewIcon(theme.MediaPlayIcon())
-				statusText = "运行中"
-				statusColor = color.NRGBA{R: 255, G: 180, B: 0, A: 255} // 橙黄色
-			} else {
-				statusIcon = widget.NewIcon(theme.ConfirmIcon())
-				statusText = "可重置"
-				statusColor = color.NRGBA{R: 50, G: 205, B: 50, A: 255} // 绿色
-			}
-		} else {
-			statusIcon = widget.NewIcon(theme.ErrorIcon())
-			statusText = "未找到"
-			statusColor = color.NRGBA{R: 255, G: 70, B: 70, A: 255} // 红色
-			checkBox.Disable()
-		}
-
-		// 创建状态指示器 - 减小尺寸
-		statusIndicator := canvas.NewRectangle(statusColor)
-		statusIndicator.SetMinSize(fyne.NewSize(3, 18)) // 进一步减小高度
-
-		// 路径显示
-		var pathText string
-		if appInfo.Found {
-			pathText = appInfo.Path
-		} else {
-			pathText = "N/A"
-		}
-
-		// 创建路径标签，确保更加醒目和清晰可见
-		pathLabel := widget.NewLabel(fmt.Sprintf("路径: %s", pathText))
-
-		// 直接使用普通标签，确保路径始终显示，不使用TextTruncate
-		pathLabel.Alignment = fyne.TextAlignLeading
-		pathLabel.TextStyle = fyne.TextStyle{
-			Bold:   false,
-			Italic: true,
-		}
-
-		// 状态标签
-		statusLabel := widget.NewLabelWithStyle(statusText, fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
-
-		// 尺寸显示
-		sizeContainer := container.NewHBox(
-			widget.NewIcon(theme.StorageIcon()),
-			widget.NewLabelWithStyle(appInfo.Size, fyne.TextAlignTrailing, fyne.TextStyle{}),
-		)
-
-		// 创建标题行
-		titleRow := container.NewHBox(
-			statusIndicator,
-			checkBox,
-			statusIcon,
-			widget.NewLabelWithStyle(appInfo.DisplayName, fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-			layout.NewSpacer(),
-			statusLabel,
-		)
-
-		// 创建路径行 - 使用独立框架突出显示路径
-		pathFrame := canvas.NewRectangle(color.NRGBA{R: 40, G: 45, B: 55, A: 120})
-		pathFrame.StrokeWidth = 1
-		pathFrame.StrokeColor = color.NRGBA{R: 70, G: 80, B: 90, A: 150}
-
-		// 路径和大小信息行
-		pathRow := container.NewHBox(
-			widget.NewIcon(theme.FolderIcon()),
-			pathLabel,
-			layout.NewSpacer(),
-			sizeContainer,
-		)
-
-		// 创建一条分隔线使路径与标题分开
-		separator := widget.NewSeparator()
-
-		// 创建更紧凑的卡片内容
-		cardContent := container.NewVBox(
-			titleRow,
-			separator,
-			container.NewPadded(pathRow), // 使用内边距包装路径行，增加可见性
-		)
-
-		// 背景带有更明显的边框，增强卡片效果
-		bg := canvas.NewRectangle(color.NRGBA{R: 45, G: 50, B: 60, A: 60})
-		bg.StrokeWidth = 1
-		bg.StrokeColor = color.NRGBA{R: 70, G: 80, B: 90, A: 120}
-
-		// 使用Container.New创建一个自定义容器
-		card := container.New(
-			layout.NewMaxLayout(),
-			bg,
-			container.NewPadded(cardContent),
-		)
-
-		// 将卡片添加到容器
-		appsContainer.Add(card)
-	}
-
-	// 创建滚动容器
-	scrollContainer := container.NewScroll(appsContainer)
-
-	// 减小应用列表区域的高度
-	scrollContainer.SetMinSize(fyne.NewSize(0, 90))
-
-	// 返回完整的应用列表区域，包含边框
-	return container.New(
-		layout.NewMaxLayout(),
-		listBorder,
-		container.NewBorder(
-			listHeader,
-			nil, nil, nil,
-			scrollContainer,
-		),
-	)
+	// 最终的应用列表容器，使用Border布局
+	return container.NewBorder(listHeader, nil, nil, nil, listScroll)
 }
 
-// 刷新应用列表
+// refreshAppList refreshes the application list area
 func (app *App) refreshAppList() {
-	// 如果是初始化阶段，不执行操作
-	if app.mainWindow == nil || app.mainWindow.Content() == nil {
-		app.log("INFO", "无法刷新应用列表 - 窗口未初始化")
-		return
-	}
-
-	// 记录当前时间，用于性能分析
 	startTime := time.Now()
-	app.log("INFO", "正在刷新应用列表")
+	app.logMessage("INFO", "LogAppListRefreshStarted", nil)
+	app.logMessage("INFO", "LogAppListData", map[string]interface{}{"Count": len(app.appData)})
+
+	// 打印每个应用的详细信息
+	for i, appInfo := range app.appData {
+		app.logMessage("INFO", "LogAppDetails", map[string]interface{}{
+			"Index":    i,
+			"Name":     appInfo.DisplayName,
+			"Path":     appInfo.Path,
+			"Running":  appInfo.Running,
+			"Found":    appInfo.Found,
+			"Selected": app.selectedApps[i],
+		})
+	}
 
 	// 重新创建应用列表区域
-	appListArea := app.createAppListArea()
+	newAppListArea := app.createAppListArea()
 
-	// 更新主区域容器的内容
-	if app.mainAreaContainer != nil {
-		// mainAreaContainer是一个Border布局，其对象顺序为 [center, top, bottom, left, right]
-		// 我们需要替换中央内容（第一个对象），同时保留底部控件
-		app.mainAreaContainer.Objects[0] = appListArea
-		app.mainAreaContainer.Refresh()
-		app.log("INFO", "应用列表UI已刷新")
+	// 设置主区域的实际宽高
+	app.logMessage("INFO", "LogMainAreaSize", map[string]interface{}{
+		"Size": app.mainAreaContainer.Size(),
+	})
+
+	// 检查主区域是否是VSplit布局
+	if vSplit, ok := app.mainAreaContainer.(*container.Split); ok {
+		app.logMessage("INFO", "LogFoundVSplit", nil)
+
+		// 获取当前分割比例
+		currentOffset := vSplit.Offset
+
+		// 只更新上半部分（应用列表）
+		vSplit.Leading = newAppListArea
+
+		// 保持原有分割比例
+		vSplit.Offset = currentOffset
+		app.logMessage("INFO", "LogMaintainingSplitRatio", map[string]interface{}{
+			"Ratio": currentOffset,
+		})
+
+		// 刷新UI
+		vSplit.Refresh()
+		app.logMessage("INFO", "LogVSplitRefreshed", nil)
 	} else {
-		app.log("INFO", "主区域容器为nil，无法刷新UI")
+		app.logMessage("ERROR", "LogMainAreaNotVSplit", nil)
 	}
 
-	// 更新重置按钮状态
-	app.updateCleanButton()
-
-	// 记录完成时间
 	elapsedTime := time.Since(startTime)
-	app.log("INFO", fmt.Sprintf("应用列表刷新完成，用时: %v", elapsedTime))
+	app.logMessage("INFO", "LogAppListRefreshComplete", map[string]interface{}{
+		"Duration": elapsedTime,
+	})
+}
+
+func (app *App) recreateUI() {
+	app.mainWindow.SetTitle(app.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "WindowTitle"}))
+	app.mainWindow.SetContent(app.createContent())
+	// Re-run discovery to populate the list with the correct language
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		app.performDiscovery()
+	}()
+}
+
+// findAppList 尝试查找并返回当前应用列表控件
+func (app *App) findAppList() *widget.List {
+	// 如果主区域容器不存在，直接返回nil
+	if app.mainAreaContainer == nil {
+		return nil
+	}
+
+	mainSplit, ok := app.mainAreaContainer.(*container.Split)
+	if !ok {
+		app.logMessage("ERROR", "LogMainAreaNotVSplit", nil)
+		return nil
+	}
+
+	appListContainer := mainSplit.Leading
+	if appListContainer == nil {
+		app.logMessage("ERROR", "LogSplitLeadingEmpty", nil)
+		return nil
+	}
+
+	border, ok := appListContainer.(*fyne.Container)
+	if !ok {
+		app.logMessage("ERROR", "LogAppListAreaNotContainer", nil)
+		return nil
+	}
+
+	if len(border.Objects) < 1 {
+		app.logMessage("ERROR", "LogBorderContainerEmpty", nil)
+		return nil
+	}
+
+	var content fyne.CanvasObject
+	// 查找非Label的组件
+	for _, obj := range border.Objects {
+		if _, isLabel := obj.(*widget.Label); !isLabel {
+			content = obj
+			break
+		}
+	}
+
+	if content == nil {
+		app.logMessage("ERROR", "LogBorderContentNotFound", nil)
+		return nil
+	}
+
+	scroll, ok := content.(*container.Scroll)
+	if !ok {
+		nestedContainer, isContainer := content.(*fyne.Container)
+		if !isContainer || len(nestedContainer.Objects) == 0 {
+			app.logMessage("ERROR", "LogContentNotScrollOrContainer", nil)
+			return nil
+		}
+
+		scroll, ok = nestedContainer.Objects[0].(*container.Scroll)
+		if !ok {
+			app.logMessage("ERROR", "LogAppListNotScroll", nil)
+			return nil
+		}
+	}
+
+	list, ok := scroll.Content.(*widget.List)
+	if !ok {
+		app.logMessage("ERROR", "LogScrollContentNotList", nil)
+		return nil
+	}
+
+	return list
 }

@@ -65,27 +65,33 @@ func (t *ModernDarkTheme) Font(style fyne.TextStyle) fyne.Resource {
 func (t *ModernDarkTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
 
 	if name == theme.ColorNameBackground {
-		return color.NRGBA{R: 25, G: 28, B: 36, A: 255} // 深蓝灰色背景
+		return color.NRGBA{R: 22, G: 25, B: 33, A: 255}
 	} else if name == theme.ColorNameButton {
-		return color.NRGBA{R: 50, G: 55, B: 65, A: 255} // 按钮背景
+		return color.NRGBA{R: 50, G: 55, B: 65, A: 255}
 	} else if name == theme.ColorNameDisabled {
-		return color.NRGBA{R: 70, G: 75, B: 85, A: 180} // 禁用状态
+		return color.NRGBA{R: 100, G: 105, B: 115, A: 200}
 	} else if name == theme.ColorNameForeground {
-		return color.NRGBA{R: 230, G: 230, B: 240, A: 255} // 更白的文本颜色
+		return color.NRGBA{R: 240, G: 245, B: 250, A: 255}
 	} else if name == theme.ColorNameHover {
-		return color.NRGBA{R: 75, G: 105, B: 145, A: 255} // 悬停颜色
+		return color.NRGBA{R: 75, G: 105, B: 145, A: 255}
 	} else if name == theme.ColorNamePlaceHolder {
-		return color.NRGBA{R: 130, G: 135, B: 145, A: 255} // 占位符文本
+		return color.NRGBA{R: 160, G: 165, B: 175, A: 255}
 	} else if name == theme.ColorNamePrimary {
-		return color.NRGBA{R: 80, G: 145, B: 235, A: 255} // 更亮的主题色
+		return color.NRGBA{R: 80, G: 145, B: 235, A: 255}
 	} else if name == theme.ColorNameScrollBar {
-		return color.NRGBA{R: 60, G: 65, B: 75, A: 180} // 半透明滚动条
+		return color.NRGBA{R: 60, G: 65, B: 75, A: 180}
 	} else if name == theme.ColorNameShadow {
-		return color.NRGBA{R: 0, G: 0, B: 0, A: 80} // 更柔和的阴影
+		return color.NRGBA{R: 0, G: 0, B: 0, A: 80}
 	} else if name == theme.ColorNameInputBackground {
-		return color.NRGBA{R: 35, G: 38, B: 46, A: 255} // 输入框背景
+		return color.NRGBA{R: 15, G: 17, B: 22, A: 255} // 非常深的输入框背景，最大化对比度
 	} else if name == theme.ColorNameSelection {
 		return color.NRGBA{R: 55, G: 115, B: 200, A: 100} // 选中区域
+	} else if name == theme.ColorNameInputBorder {
+		return color.NRGBA{R: 60, G: 65, B: 75, A: 255} // 输入框边框
+	} else if name == theme.ColorNameMenuBackground {
+		return color.NRGBA{R: 30, G: 33, B: 41, A: 255} // 菜单背景
+	} else if name == theme.ColorNameOverlayBackground {
+		return color.NRGBA{R: 15, G: 18, B: 26, A: 200} // 覆盖层背景
 	}
 
 	// 其他颜色使用默认暗色主题
@@ -104,7 +110,7 @@ func (t *ModernDarkTheme) Size(name fyne.ThemeSizeName) float32 {
 	case theme.SizeNamePadding:
 		return theme.DefaultTheme().Size(name) * 0.85 // 减小内边距
 	case theme.SizeNameText:
-		return theme.DefaultTheme().Size(name) * 0.95 // 稍微减小文本大小
+		return theme.DefaultTheme().Size(name) * 1.0 // 保持标准文本大小以提高可读性
 	case theme.SizeNameHeadingText:
 		return theme.DefaultTheme().Size(name) * 0.95 // 稍微减小标题大小
 	case theme.SizeNameInputBorder:

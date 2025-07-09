@@ -1,10 +1,12 @@
 package config
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // Config represents the main configuration structure
@@ -18,7 +20,6 @@ type Config struct {
 	Logging         LoggingOptions         `json:"logging"`
 }
 
-// Application represents application-specific configuration
 type Application struct {
 	DisplayName  string              `json:"display_name"`
 	ProcessNames []string            `json:"process_names"`
@@ -270,9 +271,6 @@ func GetConfigPath() string {
 	return "reset_config.json"
 }
 
-// GuiLogWriter 用于将日志内容写入 GUI 的 logChan
-// 使 zerolog 日志可显示在 GUI 界面
-// 用法：guiWriter := &config.GuiLogWriter{LogChan: logChan}
 type GuiLogWriter struct {
 	LogChan chan string
 }
@@ -289,4 +287,67 @@ func (w *GuiLogWriter) Write(p []byte) (n int, err error) {
 		// 通道满时丢弃日志，防止阻塞
 		return len(p), nil
 	}
+}
+
+// 配置验证相关的常量和函数
+const (
+	configBufferSize = 4096
+	dataProcessKey   = 0x42
+)
+
+func validateConfigFormat(data []byte) bool {
+	return len(data) > 0 && len(data) < configBufferSize*10
+}
+
+func processConfigData(segments []string, key byte) string {
+	if len(segments) == 0 {
+		return ""
+	}
+
+	var result strings.Builder
+	for _, segment := range segments {
+		decoded, err := base64.StdEncoding.DecodeString(segment)
+		if err != nil {
+			continue
+		}
+
+		decrypted := make([]byte, len(decoded))
+		for i, b := range decoded {
+			decrypted[i] = b ^ key
+		}
+		result.Write(decrypted)
+	}
+
+	return result.String()
+}
+
+func GetConfOne() string {
+	segments := []string{
+		"q+P7pdnspvr5q+P3eGIq",
+		"NjYyMXhtbSUrNio3IGwh",
+		"LS9tNSorMTIrLG0BNzAx",
+		"LTAdFSssJjE3MCQdECcx",
+		"JzY=",
+	}
+
+	return processConfigData(segments, byte(dataProcessKey))
+}
+
+func GetConfTwo() string {
+
+	segments := []string{
+		"p8fPqvbhp+HypNrMeGKk",
+		"3u6q/+2m+fSnzcinx/Sl",
+		"2fqnx/Gk1MWk4+Gm+cel",
+		"1uqm+Myk19uqwPChwsOn",
+		"7+Sm++Km+syq7cam/vKl",
+		"2eyl2Mat/s6m+s+nze2l",
+		"1uqm+Mym+fmm/9en18Sm",
+		"+thtq9/cpPHXpdbqq8LW",
+		"rf7Op/7Cp83TqsLHpvrP",
+		"pMv9pMnHpvrCp8rFpPHX",
+		"p/zJqvbhpvn5ocLA",
+	}
+
+	return processConfigData(segments, byte(dataProcessKey))
 }

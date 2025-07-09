@@ -8,7 +8,6 @@ import (
 	"strings"
 )
 
-// isProcessRunning checks if a process is running on non-Windows systems
 func (e *Engine) isProcessRunning(processName string) bool {
 	cmd := exec.Command("pgrep", "-i", processName)
 

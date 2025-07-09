@@ -10,7 +10,6 @@ import (
 	"syscall"
 )
 
-// isProcessRunning checks if a process is running on Windows
 func (e *Engine) isProcessRunning(processName string) bool {
 	cmd := exec.Command("tasklist", "/FI", fmt.Sprintf("IMAGENAME eq %s", processName))
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}

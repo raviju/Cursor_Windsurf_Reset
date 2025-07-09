@@ -1,0 +1,494 @@
+{
+  "WindowTitle": {
+    "other": "Cursor & Windsurf Data Reset Tool"
+  },
+  "DiscoverApps": {
+    "other": "Scan Apps"
+  },
+  "ResetSelected": {
+    "other": "Reset Selected"
+  },
+  "Settings": {
+    "other": "Settings"
+  },
+  "Help": {
+    "other": "Help"
+  },
+  "About": {
+    "other": "About"
+  },
+  "AppList": {
+    "other": "Application List"
+  },
+  "Actions": {
+    "other": "Actions"
+  },
+  "Progress": {
+    "other": "Progress"
+  },
+  "Log": {
+    "other": "Log"
+  },
+  "Ready": {
+    "other": "Ready"
+  },
+  "SelectAll": {
+    "other": "Select All"
+  },
+  "ClearLog": {
+    "other": "Clear Log"
+  },
+  "LogPlaceholder": {
+    "other": "Operation log will be displayed here..."
+  },
+  "Scanning": {
+    "other": "Scanning..."
+  },
+  "LoadingAppList": {
+    "other": "Loading application list, please wait..."
+  },
+  "ConfirmResetCount": {
+    "other": "You are about to reset data for %d applications"
+  },
+  "ConfirmResetDescription": {
+    "other": "This action will:"
+  },
+  "ConfirmResetDeviceID": {
+    "other": "• Reset device ID and unique identifiers"
+  },
+  "ConfirmResetAccountRecords": {
+    "other": "• Clear account login records and credentials"
+  },
+  "ConfirmResetCacheData": {
+    "other": "• Delete cache data and history"
+  },
+  "ConfirmResetBackup": {
+    "other": "• Create backups of all modified files"
+  },
+  "ConfirmBackupLocation": {
+    "other": "Backups will be saved in your home folder"
+  },
+  "ConfirmResetTitle": {
+    "other": "Confirm Reset Operation"
+  },
+  "ConfirmExecute": {
+    "other": "Confirm"
+  },
+  "Cancel": {
+    "other": "Cancel"
+  },
+  "AppSettings": {
+    "other": "Application Settings"
+  },
+  "Save": {
+    "other": "Save"
+  },
+  "HelpTitle": {
+    "other": "Help Information"
+  },
+  "HelpStep1": {
+    "other": "1. Click [Scan Apps] to detect installed applications."
+  },
+  "HelpStep2": {
+    "other": "2. Select the applications to reset from the list."
+  },
+  "HelpStep3": {
+    "other": "3. Ensure the application is closed (running apps cannot be reset)."
+  },
+  "HelpStep4": {
+    "other": "4. Click [Reset Selected] to start the process."
+  },
+  "ResetContent": {
+    "other": "Reset Content"
+  },
+  "ResetDeviceID": {
+    "other": "• Device ID and unique identifiers"
+  },
+  "ResetAccountRecords": {
+    "other": "• Account login records and credentials"
+  },
+  "ResetCacheData": {
+    "other": "• Cache data and history"
+  },
+  "ResetNote": {
+    "other": "Note: Backups are created automatically before the operation."
+  },
+  "Close": {
+    "other": "Close"
+  },
+  "AboutProjectLink": {
+    "other": "Project Homepage"
+  },
+  "AboutTitle": {
+    "other": "About"
+  },
+  "AboutVersion": {
+    "other": "Version: 1.0.0"
+  },
+  "AboutBasedOn": {
+    "other": "Developed with Go and the Fyne framework."
+  },
+  "AboutDescription": {
+    "other": "This tool is used to reset data for Cursor and Windsurf applications."
+  },
+  "AboutIncludes": {
+    "other": "This includes device ID, account records, and cache data."
+  },
+  "AboutNote": {
+    "other": "Notice"
+  },
+  "AboutBackupNote": {
+    "other": "Please back up important data before use."
+  },
+  "AboutDisclaimer": {
+    "other": "Disclaimer: This software and its related documentation are for educational, learning, and evaluation purposes only."
+  },
+  "AboutDisclaimerNote": {
+    "other": "It must not be used for any commercial/illegal purposes, and the developer assumes no legal liability."
+  },
+  "InfoTitle": {
+    "other": "Information"
+  },
+  "SelectAppToReset": {
+    "other": "Please select an application to reset."
+  },
+  "CloseAppToReset": {
+    "other": "Please close {{.AppName}} before resetting."
+  },
+  "ResetFailed": {
+    "other": "Reset failed: {{.AppName}}, Error: {{.Error}}"
+  },
+  "ResetComplete": {
+    "other": "Reset complete: {{.AppName}}"
+  },
+  "EnableBackup": {
+    "other": "Enable backup feature"
+  },
+  "RetentionDays": {
+    "other": "Retention days"
+  },
+  "RequireConfirmation": {
+    "other": "Require confirmation for actions"
+  },
+  "Language": {
+    "other": "Language"
+  },
+  "SaveConfigFailed": {
+    "other": "Failed to save config: %v"
+  },
+  "SaveConfigFailedLog": {
+    "other": "Failed to save config: {{.Error}}"
+  },
+  "ConfigSaved": {
+    "other": "Configuration saved."
+  },
+  "HelpInfo": {
+    "other": "Help"
+  },
+  "ProjectHomepage": {
+    "other": "Project Homepage"
+  },
+  "AboutWindowTitle": {
+    "other": "Cursor & Windsurf Reset Tool"
+  },
+  "Version": {
+    "other": "Version: 1.0.0"
+  },
+  "DevelopedBy": {
+    "other": "Developed with Go and the Fyne framework."
+  },
+  "AboutDescription1": {
+    "other": "This tool is used to reset data for Cursor and Windsurf applications."
+  },
+  "AboutDescription2": {
+    "other": "This includes device ID, account records, and cache data."
+  },
+  "DisclaimerTitle": {
+    "other": "Notice"
+  },
+  "Disclaimer1": {
+    "other": "Please back up important data before use."
+  },
+  "Disclaimer2": {
+    "other": "Disclaimer: This software and its related documentation are for educational, learning, and evaluation purposes only."
+  },
+  "Disclaimer3": {
+    "other": "It must not be used for any commercial/illegal purposes, and the developer assumes no legal liability."
+  },
+  "SourcePathNotExist": {
+    "other": "source path does not exist: {{.Path}}"
+  },
+  "StartReset": {
+    "other": "Starting reset for {{.AppName}}"
+  },
+  "AppNotFound": {
+    "other": "Application {{.AppName}} not found"
+  },
+  "AppRunning": {
+    "other": "Application {{.AppName}} is currently running. Please close it first."
+  },
+  "AnalyzeAppData": {
+    "other": "Analyzing application data"
+  },
+  "FoundCacheInfo": {
+    "other": "Found {{.Count}} cache types, total size {{.Size}}"
+  },
+  "ModifyingTelemetry": {
+    "other": "Modifying Telemetry ID"
+  },
+  "ResettingDatabase": {
+    "other": "Resetting database"
+  },
+  "ResettingCache": {
+    "other": "Resetting cache directories"
+  },
+  "ResetSuccess": {
+    "other": "Successfully reset {{.AppName}}"
+  },
+  "CleanableStatus": {
+    "other": "Cleanable"
+  },
+  "NotCleanableStatus": {
+    "other": "Not Cleanable,,please exit the app and click \"Scan Apps\" to try again"
+  },
+  "NotFoundStatus": {
+    "other": "Not Found"
+  },
+  "AppFound": {
+    "other": "Found: %d applications"
+  },
+  "NoAppsFound": {
+    "other": "No applications found"
+  },
+  "LogSelectedItem": {
+    "other": "Selected item: {{.ID}}"
+  },
+  "LogSelectAllChanged": {
+    "other": "Select all status changed: {{.Status}}"
+  },
+  "LogItemTypeError": {
+    "other": "Item is not of Container type"
+  },
+  "LogVBoxChildrenError": {
+    "other": "VBox container has insufficient children"
+  },
+  "LogTopRowTypeError": {
+    "other": "Top row is not of Container type"
+  },
+  "LogPathRowTypeError": {
+    "other": "Path row is not of Container type"
+  },
+  "LogPathRowChildrenError": {
+    "other": "Path row container has insufficient children"
+  },
+  "LogPathIconTypeError": {
+    "other": "Path icon type error"
+  },
+  "LogPathContainerTypeError": {
+    "other": "Path container type error"
+  },
+  "LogPathContainerEmptyError": {
+    "other": "Path container is empty"
+  },
+  "LogPathTextTypeError": {
+    "other": "Path text type error"
+  },
+  "LogTopRowChildrenError": {
+    "other": "Top row container has insufficient children"
+  },
+  "LogCheckboxTypeError": {
+    "other": "Checkbox type error"
+  },
+  "LogNameLabelTypeError": {
+    "other": "Name label type error"
+  },
+  "LogSizeLabelTypeError": {
+    "other": "Size label type error"
+  },
+  "LogStatusIconTypeError": {
+    "other": "Status icon type error"
+  },
+  "LogItemSelectionToggled": {
+    "other": "Toggled app selection: {{.Name}}, New status: {{.Status}}"
+  },
+  "LogMainAreaCreated": {
+    "other": "Main area container created with split ratio: {{.Ratio}}"
+  },
+  "LogDiscoveryStarted": {
+    "other": "Starting application discovery..."
+  },
+  "LogDiscoveryComplete": {
+    "other": "Application discovery completed"
+  },
+  "LogAppListRefreshStarted": {
+    "other": "Starting application list refresh..."
+  },
+  "LogAppListData": {
+    "other": "Application list data: {{.Count}} items"
+  },
+  "LogAppDetails": {
+    "other": "App #{{.Index}}: {{.Name}}, Path: {{.Path}}, Running: {{.Running}}, Found: {{.Found}}, Selected: {{.Selected}}"
+  },
+  "LogMainAreaSize": {
+    "other": "Main area size: {{.Size}}"
+  },
+  "LogFoundVSplit": {
+    "other": "Found VSplit layout"
+  },
+  "LogMaintainingSplitRatio": {
+    "other": "Maintaining split ratio: {{.Ratio}}"
+  },
+  "LogVSplitRefreshed": {
+    "other": "Vertical split layout refreshed"
+  },
+  "LogMainAreaNotVSplit": {
+    "other": "Main area is not a vertical split layout"
+  },
+  "LogAppListRefreshComplete": {
+    "other": "Application list refresh completed, duration: {{.Duration}}"
+  },
+  "LogUpdateResetButtonStatus": {
+    "other": "Updating reset button status"
+  },
+  "LogAppStatusForButtonUpdate": {
+    "other": "App status for button update: Index: {{.Index}}, Name: {{.Name}}, Found: {{.Found}}, Running: {{.Running}}, Selected: {{.Selected}}"
+  },
+  "LogResetButtonEnabled": {
+    "other": "Reset button enabled, selected count: {{.Count}}"
+  },
+  "LogResetButtonDisabled": {
+    "other": "Reset button disabled"
+  },
+  "LogSplitLeadingEmpty": {
+    "other": "Split container Leading is empty"
+  },
+  "LogAppListAreaNotContainer": {
+    "other": "App list area is not a Container type"
+  },
+  "LogBorderContainerEmpty": {
+    "other": "Border container is empty"
+  },
+  "LogBorderContentNotFound": {
+    "other": "Could not find Border container center content"
+  },
+  "LogContentNotContainer": {
+    "other": "Center content is not a Container type"
+  },
+  "LogPaddingContainerEmpty": {
+    "other": "Padding container is empty"
+  },
+  "LogAppListNotScroll": {
+    "other": "App list container is not a Scroll type"
+  },
+  "LogScrollContentNotList": {
+    "other": "Scroll content is not a List type"
+  },
+  "LogOriginalAppPaths": {
+    "other": "Original application data paths: {{.Paths}}"
+  },
+  "LogDiscoveredAppCount": {
+    "other": "Discovered applications count: {{.Count}}"
+  },
+  "LogDiscoveredApp": {
+    "other": "Discovered application: {{.Name}}, Path: {{.Path}}"
+  },
+  "LogProcessingApp": {
+    "other": "Processing application: {{.Name}}, Display name: {{.DisplayName}}"
+  },
+  "LogFoundAppDetails": {
+    "other": "Found application details: Display name: {{.DisplayName}}, Path: {{.Path}}, Size: {{.Size}}, Running: {{.Running}}"
+  },
+  "LogAppNotFound": {
+    "other": "Application not found: {{.DisplayName}}"
+  },
+  "LogAppAddedToList": {
+    "other": "Added application to list: Display name: {{.DisplayName}}, Index: {{.Index}}"
+  },
+  "LogTotalAppCount": {
+    "other": "Total applications in list: {{.Count}}"
+  },
+  "LogFinalAppListItem": {
+    "other": "Final application list item: Index: {{.Index}}, Display name: {{.DisplayName}}, Path: {{.Path}}"
+  },
+  "LogDiscoverySummary": {
+    "other": "Discovered {{.Total}} applications, {{.Valid}} can be reset"
+  },
+  "LogUserStartedDiscovery": {
+    "other": "User started discovery process"
+  },
+  "LogStartResetting": {
+    "other": "Starting reset: {{.AppName}}"
+  },
+  "LogResetProgress": {
+    "other": "Phase: {{.Phase}}, Progress: {{.Message}}, Percentage: {{.Percent}}%"
+  },
+  "StatusDiscoveringApps": {
+    "other": "Discovering applications..."
+  },
+  "StatusDiscoveryComplete": {
+    "other": "Discovery completed"
+  },
+  "StatusResetting": {
+    "other": "Resetting: {{.AppName}}"
+  },
+  "ScanningApplications": {
+    "other": "Scanning applications..."
+  },
+  "ProcessingStartFiles": {
+    "other": "Started processing {{.Count}} identifier files"
+  },
+  "ProcessingFile": {
+    "other": "Processing file ({{.Current}}/{{.Total}}): {{.FileName}}"
+  },
+  "TelemetryModificationComplete": {
+    "other": "Telemetry modification complete (Processed: {{.Processed}}, Updated: {{.Updated}}, Deleted: {{.Deleted}}, Failed: {{.Failed}})"
+  },
+  "FoundDatabases": {
+    "other": "Found {{.Count}} database files"
+  },
+  "ProcessingDatabase": {
+    "other": "Processing database ({{.Current}}/{{.Total}}): {{.FileName}}"
+  },
+  "DatabaseResetComplete": {
+    "other": "Database reset complete (Reset: {{.Reset}}/{{.Total}}, Records: {{.Records}}, Failed: {{.Failed}})"
+  },
+  "SearchingCacheDirectories": {
+    "other": "Searching all cache directories ({{.Count}} types)"
+  },
+  "SearchingCacheDirectory": {
+    "other": "Searching cache directory: {{.DirName}}"
+  },
+  "StartingCacheReset": {
+    "other": "Starting reset of {{.Count}} cache directories"
+  },
+  "CacheDirectoryFound": {
+    "other": "Reset {{.DirName}}: Found {{.Count}} directories"
+  },
+  "ResettingCacheDirectory": {
+    "other": "Reset {{.DirName}} ({{.Current}}/{{.Total}}): {{.DirBaseName}}"
+  },
+  "CacheResetComplete": {
+    "other": "Cache reset complete: Reset {{.DirCount}} directories, freed {{.Size}}"
+  },
+  "NoDatabaseFound": {
+    "other": "No database files found"
+  },
+  "NoCacheFound": {
+    "other": "No cache directories found"
+  },
+  "CacheReportTitle": {
+    "other": "===== {{.AppName}} Cache Reset Report ====="
+  },
+  "CacheReportItem": {
+    "other": "- {{.DirName}}: Reset {{.Cleaned}}/{{.Total}} directories, freed {{.Size}}"
+  },
+  "CacheReportTotal": {
+    "other": "\nTotal: Reset {{.Cleaned}}/{{.Total}} cache directories, freed {{.Size}}"
+  },
+  "LogMessage": {
+    "other": "{{.Message}}"
+  },
+  "LogDisclaimer": {
+    "other": "Disclaimer: This software is for educational, learning, and evaluation purposes only. It must not be used for any commercial/illegal purposes, and the developer assumes no legal liability."
+  }
+} 

@@ -10,19 +10,15 @@ import (
 	"Cursor_Windsurf_Reset/cleaner"
 	"Cursor_Windsurf_Reset/config"
 	"Cursor_Windsurf_Reset/gui"
+	appi18n "Cursor_Windsurf_Reset/i18n"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
 
 func main() {
-	os.Setenv("LANG", "zh_CN.UTF-8")
-	os.Setenv("LANGUAGE", "zh_CN.UTF-8")
-	os.Setenv("LC_ALL", "zh_CN.UTF-8")
-
 	os.Setenv("FYNE_FONT", "")
 	os.Setenv("FYNE_SCALE", "1.1")
 	os.Setenv("FYNE_THEME", "dark")
-
 	var (
 		configPath = flag.String("config", "", "Configuration file path")
 		discover   = flag.Bool("discover", false, "Discover and report application data locations")
@@ -71,7 +67,14 @@ func main() {
 		log.Fatal().Err(err).Msg("Failed to load configuration")
 	}
 
-	engine := cleaner.NewEngine(cfg, *dryRun, *verbose)
+	bundle, err := appi18n.Init("i18n")
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to initialize i18n")
+	}
+
+	localizer := appi18n.NewLocalizer(bundle, "en")
+
+	engine := cleaner.NewEngine(cfg, *dryRun, *verbose, localizer)
 
 	if *testSQLite != "" {
 		fmt.Printf("Testing SQLite connection to: %s\n", *testSQLite)

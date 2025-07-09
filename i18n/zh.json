@@ -1,0 +1,482 @@
+{
+  "WindowTitle": {
+    "other": "Cursor & Windsurf 数据重置工具"
+  },
+  "DiscoverApps": {
+    "other": "扫描应用"
+  },
+  "ResetSelected": {
+    "other": "重置选中"
+  },
+  "Settings": {
+    "other": "设置"
+  },
+  "Help": {
+    "other": "帮助"
+  },
+  "About": {
+    "other": "关于"
+  },
+  "AppList": {
+    "other": "应用程序列表"
+  },
+  "Actions": {
+    "other": "操作"
+  },
+  "Progress": {
+    "other": "进度"
+  },
+  "Log": {
+    "other": "操作日志"
+  },
+  "Ready": {
+    "other": "就绪"
+  },
+  "SelectAll": {
+    "other": "全选"
+  },
+  "ClearLog": {
+    "other": "清除日志"
+  },
+  "LogPlaceholder": {
+    "other": "操作日志将显示在此处..."
+  },
+  "Scanning": {
+    "other": "正在扫描..."
+  },
+  "LoadingAppList": {
+    "other": "正在加载应用列表，请稍候..."
+  },
+  "ConfirmResetCount": {
+    "other": "您即将重置 %d 个应用的数据"
+  },
+  "ConfirmResetDescription": {
+    "other": "此操作将会："
+  },
+  "ConfirmResetDeviceID": {
+    "other": "• 重置设备ID与唯一标识"
+  },
+  "ConfirmResetAccountRecords": {
+    "other": "• 清除账户登录记录与凭据"
+  },
+  "ConfirmResetCacheData": {
+    "other": "• 删除缓存数据与历史记录"
+  },
+  "ConfirmResetBackup": {
+    "other": "• 创建所有修改文件的备份"
+  },
+  "ConfirmBackupLocation": {
+    "other": "备份将保存在您的主文件夹中"
+  },
+  "ConfirmResetTitle": {
+    "other": "确认重置操作"
+  },
+  "ConfirmExecute": {
+    "other": "确认执行"
+  },
+  "Cancel": {
+    "other": "取消"
+  },
+  "AppSettings": {
+    "other": "应用设置"
+  },
+  "Save": {
+    "other": "保存"
+  },
+  "HelpTitle": {
+    "other": "帮助信息"
+  },
+  "HelpStep1": {
+    "other": "1. 点击【扫描应用】按钮检测已安装的应用"
+  },
+  "HelpStep2": {
+    "other": "2. 从列表中选择要重置的应用"
+  },
+  "HelpStep3": {
+    "other": "3. 确保应用已关闭（运行中的应用不能重置）"
+  },
+  "HelpStep4": {
+    "other": "4. 点击【重置选中】按钮开始重置流程"
+  },
+  "ResetContent": {
+    "other": "重置内容"
+  },
+  "ResetDeviceID": {
+    "other": "• 设备ID和唯一标识"
+  },
+  "ResetAccountRecords": {
+    "other": "• 账户登录记录和凭据"
+  },
+  "ResetCacheData": {
+    "other": "• 缓存数据和历史记录"
+  },
+  "ResetNote": {
+    "other": "注意：操作前会自动创建备份"
+  },
+  "Close": {
+    "other": "关闭"
+  },
+  "AboutProjectLink": {
+    "other": "项目主页"
+  },
+  "AboutTitle": {
+    "other": "关于"
+  },
+  "AboutVersion": {
+    "other": "版本: 1.0.0"
+  },
+  "AboutBasedOn": {
+    "other": "基于Go语言和Fyne框架开发"
+  },
+  "AboutDescription": {
+    "other": "此工具用于重置Cursor和Windsurf应用的数据"
+  },
+  "AboutIncludes": {
+    "other": "包括设备ID、账户记录和缓存数据"
+  },
+  "AboutNote": {
+    "other": "注意事项"
+  },
+  "AboutBackupNote": {
+    "other": "请在使用前备份重要数据"
+  },
+  "AboutDisclaimer": {
+    "other": "使用须知：本软件及其相关文档仅用于教育、学习与评估目的"
+  },
+  "AboutDisclaimerNote": {
+    "other": "不可用于任何商业/非法用途，开发者不承担一切法律责任。"
+  },
+  "Disclaimer3": {
+    "other": "不可用于任何商业/非法用途，开发者不承担一切法律责任。"
+  },
+  "SourcePathNotExist": {
+    "other": "源路径不存在: {{.Path}}"
+  },
+  "StartReset": {
+    "other": "开始重置 {{.AppName}}"
+  },
+  "AppNotFound": {
+    "other": "找不到应用程序 {{.AppName}}"
+  },
+  "AppRunning": {
+    "other": "应用程序 {{.AppName}} 当前正在运行。请先关闭它"
+  },
+  "AnalyzeAppData": {
+    "other": "分析应用数据"
+  },
+  "FoundCacheInfo": {
+    "other": "发现 {{.Count}} 种缓存类型，总大小 {{.Size}}"
+  },
+  "ModifyingTelemetry": {
+    "other": "正在修改Telemetry ID"
+  },
+  "ResettingDatabase": {
+    "other": "正在重置数据库"
+  },
+  "ResettingCache": {
+    "other": "正在重置缓存目录"
+  },
+  "ResetSuccess": {
+    "other": "成功重置 {{.AppName}}"
+  },
+  "ProjectHomepage": {
+    "other": "项目主页"
+  },
+  "InfoTitle": {
+    "other": "信息"
+  },
+  "SelectAppToReset": {
+    "other": "请选择要重置的应用"
+  },
+  "CloseAppToReset": {
+    "other": "请在重置前关闭 {{.AppName}}"
+  },
+  "ResetFailed": {
+    "other": "重置失败: {{.AppName}}, 错误: {{.Error}}"
+  },
+  "ResetComplete": {
+    "other": "重置完成: {{.AppName}}"
+  },
+  "EnableBackup": {
+    "other": "启用备份功能"
+  },
+  "RetentionDays": {
+    "other": "保留天数"
+  },
+  "RequireConfirmation": {
+    "other": "操作需要确认"
+  },
+  "Language": {
+    "other": "语言"
+  },
+  "SaveConfigFailed": {
+    "other": "保存配置失败: %v"
+  },
+  "SaveConfigFailedLog": {
+    "other": "保存配置失败: {{.Error}}"
+  },
+  "ConfigSaved": {
+    "other": "配置已保存"
+  },
+  "HelpInfo": {
+    "other": "帮助"
+  },
+  "AboutWindowTitle": {
+    "other": "Cursor & Windsurf 重置工具"
+  },
+  "Version": {
+    "other": "版本: 1.0.0"
+  },
+  "DevelopedBy": {
+    "other": "基于Go语言和Fyne框架开发"
+  },
+  "CleanableStatus": {
+    "other": "可清理"
+  },
+  "NotCleanableStatus": {
+    "other": "不可清理，请退出应用后，再点击“扫描应用”重试"
+  },
+  "NotFoundStatus": {
+    "other": "未找到"
+  },
+  "AppFound": {
+    "other": "已发现: %d 个应用"
+  },
+  "NoAppsFound": {
+    "other": "未找到应用"
+  },
+  "LogSelectedItem": {
+    "other": "选中列表项: {{.ID}}"
+  },
+  "LogSelectAllChanged": {
+    "other": "全选状态变更: {{.Status}}"
+  },
+  "LogItemTypeError": {
+    "other": "列表项不是Container类型"
+  },
+  "LogVBoxChildrenError": {
+    "other": "VBox容器子元素数量不足"
+  },
+  "LogTopRowTypeError": {
+    "other": "顶部行不是Container类型"
+  },
+  "LogPathRowTypeError": {
+    "other": "路径行不是Container类型"
+  },
+  "LogPathRowChildrenError": {
+    "other": "路径行容器子元素数量不足"
+  },
+  "LogPathIconTypeError": {
+    "other": "路径图标类型错误"
+  },
+  "LogPathContainerTypeError": {
+    "other": "路径容器类型错误"
+  },
+  "LogPathContainerEmptyError": {
+    "other": "路径容器为空"
+  },
+  "LogPathTextTypeError": {
+    "other": "路径文本类型错误"
+  },
+  "LogTopRowChildrenError": {
+    "other": "顶部行容器子元素数量不足"
+  },
+  "LogCheckboxTypeError": {
+    "other": "选择框类型错误"
+  },
+  "LogNameLabelTypeError": {
+    "other": "名称标签类型错误"
+  },
+  "LogSizeLabelTypeError": {
+    "other": "大小标签类型错误"
+  },
+  "LogStatusIconTypeError": {
+    "other": "状态图标类型错误"
+  },
+  "LogItemSelectionToggled": {
+    "other": "切换应用选中状态: {{.Name}}, 新状态: {{.Status}}"
+  },
+  "LogMainAreaCreated": {
+    "other": "主区域容器创建完成，分割比例: {{.Ratio}}"
+  },
+  "LogDiscoveryStarted": {
+    "other": "开始发现应用程序..."
+  },
+  "LogDiscoveryComplete": {
+    "other": "应用程序发现已完成"
+  },
+  "LogAppListRefreshStarted": {
+    "other": "开始刷新应用列表..."
+  },
+  "LogAppListData": {
+    "other": "应用列表数据: {{.Count}} 项"
+  },
+  "LogAppDetails": {
+    "other": "应用 #{{.Index}}: {{.Name}}, 路径: {{.Path}}, 运行中: {{.Running}}, 已找到: {{.Found}}, 已选中: {{.Selected}}"
+  },
+  "LogMainAreaSize": {
+    "other": "主区域尺寸: {{.Size}}"
+  },
+  "LogFoundVSplit": {
+    "other": "找到VSplit布局"
+  },
+  "LogMaintainingSplitRatio": {
+    "other": "保持分割比例: {{.Ratio}}"
+  },
+  "LogVSplitRefreshed": {
+    "other": "垂直分割布局已刷新"
+  },
+  "LogMainAreaNotVSplit": {
+    "other": "主区域不是垂直分割布局"
+  },
+  "LogAppListRefreshComplete": {
+    "other": "应用列表刷新完成，用时: {{.Duration}}"
+  },
+  "LogUpdateResetButtonStatus": {
+    "other": "更新重置按钮状态"
+  },
+  "LogAppStatusForButtonUpdate": {
+    "other": "应用状态用于按钮更新: 索引: {{.Index}}, 显示名称: {{.Name}}, 已找到: {{.Found}}, 运行中: {{.Running}}, 选中: {{.Selected}}"
+  },
+  "LogResetButtonEnabled": {
+    "other": "重置按钮启用, 选中数量: {{.Count}}"
+  },
+  "LogResetButtonDisabled": {
+    "other": "重置按钮禁用"
+  },
+  "LogSplitLeadingEmpty": {
+    "other": "Split容器的Leading为空"
+  },
+  "LogAppListAreaNotContainer": {
+    "other": "应用列表区域不是Container类型"
+  },
+  "LogBorderContainerEmpty": {
+    "other": "Border容器为空"
+  },
+  "LogBorderContentNotFound": {
+    "other": "无法找到Border容器的中心内容"
+  },
+  "LogContentNotContainer": {
+    "other": "中心内容不是Container类型"
+  },
+  "LogPaddingContainerEmpty": {
+    "other": "填充容器为空"
+  },
+  "LogAppListNotScroll": {
+    "other": "应用列表容器不是Scroll类型"
+  },
+  "LogScrollContentNotList": {
+    "other": "滚动内容不是List类型"
+  },
+  "LogOriginalAppPaths": {
+    "other": "原始应用数据路径: {{.Paths}}"
+  },
+  "LogDiscoveredAppCount": {
+    "other": "发现应用数量: {{.Count}}"
+  },
+  "LogDiscoveredApp": {
+    "other": "发现应用: {{.Name}}, 路径: {{.Path}}"
+  },
+  "LogProcessingApp": {
+    "other": "处理应用: {{.Name}}, 显示名称: {{.DisplayName}}"
+  },
+  "LogFoundAppDetails": {
+    "other": "发现应用详情: 显示名称: {{.DisplayName}}, 路径: {{.Path}}, 大小: {{.Size}}, 运行中: {{.Running}}"
+  },
+  "LogAppNotFound": {
+    "other": "未找到应用: {{.DisplayName}}"
+  },
+  "LogAppAddedToList": {
+    "other": "添加应用到列表: 显示名称: {{.DisplayName}}, 索引: {{.Index}}"
+  },
+  "LogTotalAppCount": {
+    "other": "列表中应用总数: {{.Count}}"
+  },
+  "LogFinalAppListItem": {
+    "other": "最终应用列表项: 索引: {{.Index}}, 显示名称: {{.DisplayName}}, 路径: {{.Path}}"
+  },
+  "LogDiscoverySummary": {
+    "other": "共发现 {{.Total}} 个应用，其中 {{.Valid}} 个可重置"
+  },
+  "LogUserStartedDiscovery": {
+    "other": "用户启动了发现流程"
+  },
+  "LogStartResetting": {
+    "other": "开始重置: {{.AppName}}"
+  },
+  "LogResetProgress": {
+    "other": "阶段: {{.Phase}}, 进度: {{.Message}}, 百分比: {{.Percent}}%"
+  },
+  "StatusDiscoveringApps": {
+    "other": "正在发现应用程序..."
+  },
+  "StatusDiscoveryComplete": {
+    "other": "发现完成"
+  },
+  "StatusResetting": {
+    "other": "正在重置: {{.AppName}}"
+  },
+  "ScanningApplications": {
+    "other": "正在扫描应用程序..."
+  },
+  "ProcessingStartFiles": {
+    "other": "开始处理 {{.Count}} 个标识文件"
+  },
+  "ProcessingFile": {
+    "other": "处理文件 ({{.Current}}/{{.Total}}): {{.FileName}}"
+  },
+  "TelemetryModificationComplete": {
+    "other": "设备标识修改完成 (处理: {{.Processed}}, 更新: {{.Updated}}, 删除: {{.Deleted}}, 失败: {{.Failed}})"
+  },
+  "FoundDatabases": {
+    "other": "找到 {{.Count}} 个数据库文件"
+  },
+  "ProcessingDatabase": {
+    "other": "处理数据库 ({{.Current}}/{{.Total}}): {{.FileName}}"
+  },
+  "DatabaseResetComplete": {
+    "other": "数据库重置完成 (重置: {{.Reset}}/{{.Total}}, 记录: {{.Records}}, 失败: {{.Failed}})"
+  },
+  "SearchingCacheDirectories": {
+    "other": "正在搜索所有缓存目录 ({{.Count}} 种类型)"
+  },
+  "SearchingCacheDirectory": {
+    "other": "搜索缓存目录: {{.DirName}}"
+  },
+  "StartingCacheReset": {
+    "other": "开始重置 {{.Count}} 个缓存目录"
+  },
+  "CacheDirectoryFound": {
+    "other": "重置 {{.DirName}}: 发现 {{.Count}} 个目录"
+  },
+  "ResettingCacheDirectory": {
+    "other": "重置 {{.DirName}} ({{.Current}}/{{.Total}}): {{.DirBaseName}}"
+  },
+  "CacheResetComplete": {
+    "other": "缓存重置完成: 已重置 {{.DirCount}} 个目录，释放 {{.Size}}"
+  },
+  "NoDatabaseFound": {
+    "other": "未找到数据库文件"
+  },
+  "NoCacheFound": {
+    "other": "没有找到缓存目录"
+  },
+  "CacheReportTitle": {
+    "other": "===== {{.AppName}} 缓存重置报告 ====="
+  },
+  "CacheReportItem": {
+    "other": "- {{.DirName}}: 重置了 {{.Cleaned}}/{{.Total}} 目录, 释放 {{.Size}}"
+  },
+  "CacheReportTotal": {
+    "other": "\n总计: 重置了 {{.Cleaned}}/{{.Total}} 缓存目录, 释放 {{.Size}}"
+  },
+  "LogMessage": {
+    "other": "{{.Message}}"
+  },
+  "HomePage": {
+    "other": "https://github.com/whispin/Cursor_Windsurf_Reset"
+  },
+  "disclaimer": {
+    "other": "本软件及其相关文档仅用于教育、学习与评估目的，不可用于任何商业/非法用途，开发者不承担一切法律责任。"
+  }
+}

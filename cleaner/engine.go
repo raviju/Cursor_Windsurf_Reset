@@ -15,12 +15,19 @@ import (
 	"time"
 
 	"Cursor_Windsurf_Reset/config"
+	appi18n "Cursor_Windsurf_Reset/i18n"
 	"github.com/google/uuid"
-	"github.com/rs/zerolog/log"
+	"github.com/nicksnyder/go-i18n/v2/i18n"
+	"github.com/rs/zerolog"
 	_ "modernc.org/sqlite"
 )
 
-// Engine represents the main cleaning engine
+var log zerolog.Logger
+
+func init() {
+	log = zerolog.New(os.Stderr).With().Timestamp().Logger()
+}
+
 type Engine struct {
 	config        *config.Config
 	backupBaseDir string
@@ -28,9 +35,9 @@ type Engine struct {
 	dryRun        bool
 	verbose       bool
 	progressChan  chan ProgressUpdate
+	localizer     *appi18n.LocalizerWrapper
 }
 
-// ProgressUpdate represents a progress update
 type ProgressUpdate struct {
 	Type     string  `json:"type"`
 	Message  string  `json:"message"`
@@ -39,38 +46,33 @@ type ProgressUpdate struct {
 	Phase    string  `json:"phase,omitempty"`
 }
 
-// CacheStats 表示缓存重置统计信息
 type CacheStats struct {
-	DirCount    int   // 发现的目录数量
-	TotalSize   int64 // 总大小（字节）
-	TotalFiles  int   // 总文件数
-	CleanedDirs int   // 成功重置的目录数
+	DirCount    int
+	TotalSize   int64
+	TotalFiles  int
+	CleanedDirs int
 }
 
-// NewEngine creates a new cleaning engine
-func NewEngine(cfg *config.Config, dryRun, verbose bool) *Engine {
+func NewEngine(cfg *config.Config, dryRun, verbose bool, localizer *appi18n.LocalizerWrapper) *Engine {
 	engine := &Engine{
 		config:       cfg,
 		dryRun:       dryRun,
 		verbose:      verbose,
 		progressChan: make(chan ProgressUpdate, 100),
+		localizer:    localizer,
 	}
 
-	// Setup backup directory
 	engine.setupBackupDirectory()
 
-	// Discover app data paths
 	engine.discoverAppDataPaths()
 
 	return engine
 }
 
-// GetProgressChannel returns the progress update channel
 func (e *Engine) GetProgressChannel() <-chan ProgressUpdate {
 	return e.progressChan
 }
 
-// setupBackupDirectory creates the backup directory
 func (e *Engine) setupBackupDirectory() {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -119,7 +121,6 @@ func (e *Engine) discoverAppDataPaths() {
 	}
 }
 
-// expandPathTemplate 是一个通用的路径模板解析函数，可以处理环境变量和特殊路径符号
 func (e *Engine) expandPathTemplate(template string) string {
 	if strings.HasPrefix(template, "~") {
 		homeDir, err := os.UserHomeDir()
@@ -154,7 +155,6 @@ func (e *Engine) expandPathTemplate(template string) string {
 	return result
 }
 
-// IsAppRunning checks if the specified application is currently running
 func (e *Engine) IsAppRunning(appName string) bool {
 	appConfig, exists := e.config.Applications[appName]
 	if !exists {
@@ -175,18 +175,13 @@ func (e *Engine) IsAppRunning(appName string) bool {
 	return false
 }
 
-// isProcessRunning is implemented in platform-specific files:
-// - process_windows.go for Windows
-// - process_unix.go for non-Windows systems
-
-// CreateBackup creates a backup of a file or directory
 func (e *Engine) CreateBackup(sourcePath, backupName string) (string, error) {
 	if !e.config.BackupOptions.Enabled {
 		return "", nil
 	}
 
 	if _, err := os.Stat(sourcePath); os.IsNotExist(err) {
-		return "", fmt.Errorf("source path does not exist: %s", sourcePath)
+		return "", fmt.Errorf(e.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "SourcePathNotExist", TemplateData: map[string]interface{}{"Path": sourcePath}}))
 	}
 
 	timestamp := time.Now().Format("20060102_150405")
@@ -201,7 +196,6 @@ func (e *Engine) CreateBackup(sourcePath, backupName string) (string, error) {
 	}
 }
 
-// createCompressedBackup creates a compressed backup
 func (e *Engine) createCompressedBackup(sourcePath, backupPath string) (string, error) {
 	zipFile, err := os.Create(backupPath)
 	if err != nil {
@@ -272,7 +266,6 @@ func (e *Engine) createCompressedBackup(sourcePath, backupPath string) (string, 
 	return backupPath, nil
 }
 
-// createDirectoryBackup creates a directory backup
 func (e *Engine) createDirectoryBackup(sourcePath, backupPath string) (string, error) {
 	fileInfo, err := os.Stat(sourcePath)
 	if err != nil {
@@ -293,24 +286,23 @@ func (e *Engine) createDirectoryBackup(sourcePath, backupPath string) (string, e
 	return backupPath, nil
 }
 
-// CleanApplication performs the main cleaning operation for an application
 func (e *Engine) CleanApplication(ctx context.Context, appName string) error {
 	e.sendProgress(ProgressUpdate{
 		Type:     "start",
-		Message:  fmt.Sprintf("开始重置 %s", appName),
+		Message:  e.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "StartReset", TemplateData: map[string]interface{}{"AppName": appName}}),
 		AppName:  appName,
 		Progress: 0,
 	})
 
 	appPath, exists := e.appDataPaths[appName]
 	if !exists || appPath == "" {
-		return fmt.Errorf("找不到应用程序 %s", appName)
+		return fmt.Errorf(e.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "AppNotFound", TemplateData: map[string]interface{}{"AppName": appName}}))
 	}
 
 	// Safety checks
 	if e.config.SafetyOptions.CheckRunningProcesses {
 		if e.IsAppRunning(appName) {
-			return fmt.Errorf("应用程序 %s 当前正在运行。请先关闭它", appName)
+			return fmt.Errorf(e.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "AppRunning", TemplateData: map[string]interface{}{"AppName": appName}}))
 		}
 	}
 
@@ -320,7 +312,7 @@ func (e *Engine) CleanApplication(ctx context.Context, appName string) error {
 	// 初始缓存扫描
 	e.sendProgress(ProgressUpdate{
 		Type:     "discover",
-		Message:  "分析应用数据",
+		Message:  e.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "AnalyzeAppData"}),
 		AppName:  appName,
 		Progress: 10,
 	})
@@ -334,7 +326,7 @@ func (e *Engine) CleanApplication(ctx context.Context, appName string) error {
 
 	e.sendProgress(ProgressUpdate{
 		Type:     "discover",
-		Message:  fmt.Sprintf("发现 %d 种缓存类型，总大小 %s", len(cacheInfo), e.FormatSize(totalCacheSize)),
+		Message:  e.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "FoundCacheInfo", TemplateData: map[string]interface{}{"Count": len(cacheInfo), "Size": e.FormatSize(totalCacheSize)}}),
 		AppName:  appName,
 		Progress: 15,
 	})
@@ -342,7 +334,7 @@ func (e *Engine) CleanApplication(ctx context.Context, appName string) error {
 	// Phase 1: Telemetry ID modification
 	e.sendProgress(ProgressUpdate{
 		Type:     "phase",
-		Message:  "正在修改Telemetry ID",
+		Message:  e.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ModifyingTelemetry"}),
 		AppName:  appName,
 		Phase:    "telemetry",
 		Progress: 20,
@@ -355,7 +347,7 @@ func (e *Engine) CleanApplication(ctx context.Context, appName string) error {
 	// Phase 2: Database cleaning
 	e.sendProgress(ProgressUpdate{
 		Type:     "phase",
-		Message:  "正在重置数据库",
+		Message:  e.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ResettingDatabase"}),
 		AppName:  appName,
 		Phase:    "database",
 		Progress: 50,
@@ -368,7 +360,7 @@ func (e *Engine) CleanApplication(ctx context.Context, appName string) error {
 	// Phase 3: Cache cleaning
 	e.sendProgress(ProgressUpdate{
 		Type:     "phase",
-		Message:  "正在重置缓存目录",
+		Message:  e.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ResettingCache"}),
 		AppName:  appName,
 		Phase:    "cache",
 		Progress: 80,
@@ -380,7 +372,7 @@ func (e *Engine) CleanApplication(ctx context.Context, appName string) error {
 
 	e.sendProgress(ProgressUpdate{
 		Type:     "complete",
-		Message:  fmt.Sprintf("成功重置 %s", appName),
+		Message:  e.localizer.MustLocalize(&i18n.LocalizeConfig{MessageID: "ResetSuccess", TemplateData: map[string]interface{}{"AppName": appName}}),
 		AppName:  appName,
 		Progress: 100,
 	})
@@ -416,7 +408,7 @@ func (e *Engine) modifyTelemetry(appPath, appName string) error {
 	// 发送开始处理文件的消息
 	e.sendProgress(ProgressUpdate{
 		Type:     "telemetry",
-		Message:  fmt.Sprintf("开始处理 %d 个标识文件", totalFoundFiles),
+		Message:  e.localizeMessage("ProcessingStartFiles", map[string]interface{}{"Count": totalFoundFiles}),
 		Phase:    "telemetry",
 		Progress: 20,
 		AppName:  appName,
@@ -427,8 +419,12 @@ func (e *Engine) modifyTelemetry(appPath, appName string) error {
 		// 发送当前处理的文件消息
 		progress := 22.0 + float64(fileIndex)*18.0/float64(totalFoundFiles+1)
 		e.sendProgress(ProgressUpdate{
-			Type:     "telemetry",
-			Message:  fmt.Sprintf("处理文件 (%d/%d): %s", fileIndex+1, totalFoundFiles, filepath.Base(filePath)),
+			Type: "telemetry",
+			Message: e.localizeMessage("ProcessingFile", map[string]interface{}{
+				"Current":  fileIndex + 1,
+				"Total":    totalFoundFiles,
+				"FileName": filepath.Base(filePath),
+			}),
 			Phase:    "telemetry",
 			Progress: progress,
 			AppName:  appName,
@@ -485,8 +481,12 @@ func (e *Engine) modifyTelemetry(appPath, appName string) error {
 	// 发送标识符修改完成消息
 	e.sendProgress(ProgressUpdate{
 		Type: "telemetry",
-		Message: fmt.Sprintf("设备标识修改完成 (处理: %d, 更新: %d, 删除: %d, 失败: %d)",
-			processedFiles, updatedKeys, deletedKeys, failedFiles),
+		Message: e.localizeMessage("TelemetryModificationComplete", map[string]interface{}{
+			"Processed": processedFiles,
+			"Updated":   updatedKeys,
+			"Deleted":   deletedKeys,
+			"Failed":    failedFiles,
+		}),
 		Phase:    "telemetry",
 		Progress: 45,
 		AppName:  appName,
@@ -921,7 +921,7 @@ func (e *Engine) cleanDatabases(appPath, appName string) error {
 		log.Warn().Str("app", appName).Msg("没有找到数据库文件")
 		e.sendProgress(ProgressUpdate{
 			Type:     "database",
-			Message:  "未找到数据库文件",
+			Message:  e.localizeMessage("NoDatabaseFound", map[string]interface{}{}),
 			AppName:  appName,
 			Phase:    "database",
 			Progress: 65,
@@ -931,7 +931,7 @@ func (e *Engine) cleanDatabases(appPath, appName string) error {
 
 	e.sendProgress(ProgressUpdate{
 		Type:     "database",
-		Message:  fmt.Sprintf("找到 %d 个数据库文件", totalFiles),
+		Message:  e.localizeMessage("FoundDatabases", map[string]interface{}{"Count": totalFiles}),
 		AppName:  appName,
 		Phase:    "database",
 		Progress: 50,
@@ -951,8 +951,12 @@ func (e *Engine) cleanDatabases(appPath, appName string) error {
 	for fileIndex, dbPath := range dbFiles {
 		progress := 50.0 + float64(fileIndex)*15.0/float64(totalFiles+1)
 		e.sendProgress(ProgressUpdate{
-			Type:     "database",
-			Message:  fmt.Sprintf("处理数据库 (%d/%d): %s", fileIndex+1, totalFiles, filepath.Base(dbPath)),
+			Type: "database",
+			Message: e.localizeMessage("ProcessingDatabase", map[string]interface{}{
+				"Current":  fileIndex + 1,
+				"Total":    totalFiles,
+				"FileName": filepath.Base(dbPath),
+			}),
 			AppName:  appName,
 			Phase:    "database",
 			Progress: progress,
@@ -993,8 +997,12 @@ func (e *Engine) cleanDatabases(appPath, appName string) error {
 	// 发送完成消息
 	e.sendProgress(ProgressUpdate{
 		Type: "database",
-		Message: fmt.Sprintf("数据库重置完成 (重置: %d/%d, 记录: %d, 失败: %d)",
-			cleanedFiles, processedFiles, totalRecords, failedFiles),
+		Message: e.localizeMessage("DatabaseResetComplete", map[string]interface{}{
+			"Reset":   cleanedFiles,
+			"Total":   processedFiles,
+			"Records": totalRecords,
+			"Failed":  failedFiles,
+		}),
 		AppName:  appName,
 		Phase:    "database",
 		Progress: 65,
@@ -1256,7 +1264,7 @@ func (e *Engine) cleanCache(appPath, appName string) error {
 
 	e.sendProgress(ProgressUpdate{
 		Type:     "cache",
-		Message:  fmt.Sprintf("正在搜索所有缓存目录 (%d 种类型)", len(cacheDirs)),
+		Message:  e.localizeMessage("SearchingCacheDirectories", map[string]interface{}{"Count": len(cacheDirs)}),
 		AppName:  appName,
 		Phase:    "cache",
 		Progress: 80,
@@ -1277,7 +1285,7 @@ func (e *Engine) cleanCache(appPath, appName string) error {
 
 		e.sendProgress(ProgressUpdate{
 			Type:     "cache",
-			Message:  fmt.Sprintf("搜索缓存目录: %s", dirName),
+			Message:  e.localizeMessage("SearchingCacheDirectory", map[string]interface{}{"DirName": dirName}),
 			AppName:  appName,
 			Phase:    "cache",
 			Progress: progress,
@@ -1311,7 +1319,7 @@ func (e *Engine) cleanCache(appPath, appName string) error {
 		log.Warn().Str("app", appName).Str("path", appPath).Msg("No cache directories found")
 		e.sendProgress(ProgressUpdate{
 			Type:     "cache",
-			Message:  "没有找到缓存目录",
+			Message:  e.localizeMessage("NoCacheFound", map[string]interface{}{}),
 			AppName:  appName,
 			Phase:    "cache",
 			Progress: 100,
@@ -1322,7 +1330,7 @@ func (e *Engine) cleanCache(appPath, appName string) error {
 	// 开始重置缓存目录
 	e.sendProgress(ProgressUpdate{
 		Type:     "cache",
-		Message:  fmt.Sprintf("开始重置 %d 个缓存目录", len(allFoundDirs)),
+		Message:  e.localizeMessage("StartingCacheReset", map[string]interface{}{"Count": len(allFoundDirs)}),
 		AppName:  appName,
 		Phase:    "cache",
 		Progress: 85,
@@ -1336,8 +1344,11 @@ func (e *Engine) cleanCache(appPath, appName string) error {
 		}
 
 		e.sendProgress(ProgressUpdate{
-			Type:     "cache",
-			Message:  fmt.Sprintf("重置 %s: 发现 %d 个目录", dirName, len(foundDirs)),
+			Type: "cache",
+			Message: e.localizeMessage("CacheDirectoryFound", map[string]interface{}{
+				"DirName": dirName,
+				"Count":   len(foundDirs),
+			}),
 			AppName:  appName,
 			Phase:    "cache",
 			Progress: 85 + float64(dirIndex)*10.0/float64(len(cacheDirs)*2),
@@ -1352,8 +1363,13 @@ func (e *Engine) cleanCache(appPath, appName string) error {
 				float64(i)*5.0/float64(len(foundDirs)*len(cacheDirs))
 
 			e.sendProgress(ProgressUpdate{
-				Type:     "cache",
-				Message:  fmt.Sprintf("重置 %s (%d/%d): %s", dirName, i+1, len(foundDirs), filepath.Base(dir)),
+				Type: "cache",
+				Message: e.localizeMessage("ResettingCacheDirectory", map[string]interface{}{
+					"DirName":     dirName,
+					"Current":     i + 1,
+					"Total":       len(foundDirs),
+					"DirBaseName": filepath.Base(dir),
+				}),
 				AppName:  appName,
 				Phase:    "cache",
 				Progress: subProgress,
@@ -1435,8 +1451,11 @@ func (e *Engine) cleanCache(appPath, appName string) error {
 
 	// 发送最终的完成进度
 	e.sendProgress(ProgressUpdate{
-		Type:     "cache",
-		Message:  fmt.Sprintf("缓存重置完成: 已重置 %d 个目录，释放 %s", totalCleanedDirs, e.FormatSize(totalSize)),
+		Type: "cache",
+		Message: e.localizeMessage("CacheResetComplete", map[string]interface{}{
+			"DirCount": totalCleanedDirs,
+			"Size":     e.FormatSize(totalSize),
+		}),
 		AppName:  appName,
 		Phase:    "cache",
 		Progress: 100,
@@ -1769,6 +1788,14 @@ func (e *Engine) cleanOldBackups() {
 	}
 }
 
+// localizeMessage 使用国际化键和模板数据生成本地化消息
+func (e *Engine) localizeMessage(messageID string, templateData map[string]interface{}) string {
+	return e.localizer.MustLocalize(&i18n.LocalizeConfig{
+		MessageID:    messageID,
+		TemplateData: templateData,
+	})
+}
+
 // sendProgress sends a progress update
 func (e *Engine) sendProgress(update ProgressUpdate) {
 	select {
@@ -1792,16 +1819,21 @@ func (e *Engine) GetBackupDirectory() string {
 func (e *Engine) GenerateCacheCleaningReport(appName string, stats map[string]*CacheStats) string {
 	var report strings.Builder
 
-	report.WriteString(fmt.Sprintf("===== %s 缓存重置报告 =====\n", appName))
+	report.WriteString(e.localizeMessage("CacheReportTitle", map[string]interface{}{
+		"AppName": appName,
+	}) + "\n")
 
 	var totalDirs, totalCleanedDirs int
 	var totalSize int64
 
 	for dirName, stat := range stats {
 		if stat.DirCount > 0 {
-			report.WriteString(fmt.Sprintf("- %s: 重置了 %d/%d 目录, 释放 %s\n",
-				dirName, stat.CleanedDirs, stat.DirCount,
-				e.FormatSize(stat.TotalSize)))
+			report.WriteString(e.localizeMessage("CacheReportItem", map[string]interface{}{
+				"DirName": dirName,
+				"Cleaned": stat.CleanedDirs,
+				"Total":   stat.DirCount,
+				"Size":    e.FormatSize(stat.TotalSize),
+			}) + "\n")
 
 			totalDirs += stat.DirCount
 			totalCleanedDirs += stat.CleanedDirs
@@ -1809,8 +1841,11 @@ func (e *Engine) GenerateCacheCleaningReport(appName string, stats map[string]*C
 		}
 	}
 
-	report.WriteString(fmt.Sprintf("\n总计: 重置了 %d/%d 缓存目录, 释放 %s\n",
-		totalCleanedDirs, totalDirs, e.FormatSize(totalSize)))
+	report.WriteString(e.localizeMessage("CacheReportTotal", map[string]interface{}{
+		"Cleaned": totalCleanedDirs,
+		"Total":   totalDirs,
+		"Size":    e.FormatSize(totalSize),
+	}) + "\n")
 
 	return report.String()
 }
